@@ -1,104 +1,33 @@
-# WaterNet 训练配置
-- 代码基础：Fork自 [BIGWangYuDong/UWEnhancement](https://github.com/BIGWangYuDong/UWEnhancement)
-- 本项目Fork仓库地址：https://github.com/3220105783/UWEnhancement
-- 本地修改：仅适配自定义数据集路径和训练配置，核心逻辑未改动；；仅保留用于训练和测试 WaterNet 的文件和文件夹，移除其他无关代码、配置及文档
+# TensorFlow-Water-Net
+This is the code of the implementation of the underwater image enhancement network (Water-Net) described in "Chongyi Li, Chunle Guo, Wenqi Ren, Runmin Cong, Junhui Hou, Sam Kwong, Dacheng Tao , <An Underwater Image Enhancement Benchmark Dataset and Beyond> IEEE TIP 2019". If you use our code or dataset for academic purposes, please consider citing our paper. Thanks.
 
-## 代码来源与引用
-- 原项目地址：https://github.com/BIGWangYuDong/UWEnhancement
-- 论文引用：
-```
-bibtex
-@article{wang2021uiec,
-title = {{UIEC\^{}2-Net}: CNN-based underwater image enhancement using two color space},
-journal = {Signal Processing: Image Communication},
-volume = {96},
-pages = {116250},
-year = {2021},
-issn = {0923-5965},
-doi = {https://doi.org/10.1016/j.image.2021.116250},
-url = {https://www.sciencedirect.com/science/article/pii/S0923596521001004},
-author = {Yudong Wang and Jichang Guo and Huan Gao and Huihui Yue},
-}
-```
+# Requirement
+TensorFlow 1.x, Cuda 8.0, and Matlab.
+The missed vgg.py has been added. 
+The requirement.txt has been added.
 
-## 原项目README.md
-># Underwater Image Enhancement Toolbox
-This is an open source underwater image enhancement toolbox based on PyTorch. Meanwhile, this is the code of the implementation of the [UIEC^2-Net](http://arxiv.org/abs/2103.07138). If you use our code, please consider citing our paper. Thanks.
-![](./img/fig1.png)
-Documentation: https://uwenhancement.readthedocs.io/
-## Introduction
-This is a code that summarizes deep learning-based underwater image enhancement. We converted relevant **<font color=#dd0000 >Tensorflow</font>** code to  **<font color=#dd0000 >PyTorch</font>**, and transcoded the Tensorflow checkpoint provided by the author so that it can be read by PyTorch. We confirmed the reliability of transcoding, and uploaded the PyTorch checkpoint models(.pth file) to **<font color=#00C >Google Drive</font>** and **<font color=#00C >Baidu Cloud</font>**. (You can download at [Model Zoo](./docs/model_zoo.md))
-This is convenient for everyone to use the same environment to run experiments. We currently support [UIEC^2-Net](https://github.com/BIGWangYuDong/UWEnhancement), [UWCNN](https://github.com/saeed-anwar/UWCNN), [WaterNet](https://github.com/Li-Chongyi/Water-Net_Code), and we will continue to update. (More details in [Model Zoo](./docs/model_zoo.md))
-### Highlights
-- TTA x8 (Test Time Argument x8 images)
-- fp16
-- Visualize Network Structure
-- Training process monitoring (Use Visdom package)
-- Training log records, and loss visualize(Use TensorboardX package)
-- Tensorflow to PyTorch.
-- ...
-You can get more details at [useful_tools](./docs/useful_tools.md).
-**TODO:**
-- We will support GAN soon.
-- In the future we will support PIxel-Level related tasks, such as Dehazing, Salient Object Detection(SOD) etc. 
-## Installation
-Please refer [getting_start.md](./docs/getting_start.md) for installation.
-## Prepare Data
-Using [write_txt.py](./tools/write_txt.py) prepare train.txt and test.txt. All datasets should put in DATA folders, the directory structure is:
-    .
-    ├── ...
-    ├── DATA
-    │   ├── Train
-    │   │   ├── train
-    │   │   ├── gt
-    │   │   └── train.txt
-    │   ├── Test
-    │   │   ├── test
-    │   │   ├── gt(if need)
-    │   │   └── test.txt
-    └── ...
-If you want to run WaterNet, you should [prepare GC, WB, HE images](./tools/get_waternet_data) and put in ```DATA/Train/WaterNet``` and ```DATA/Train/WaterNet```, the directory structure is:
-    .
-    ├── WaterNet
-    │    ├── ce
-    │    ├── gc
-    │    └── wb
-## Prepare Training and Testing
-1. Clone the repo.
-    ```shell
-    git clone https://github.com/BIGWangYuDong/UWEnhancement.git UW
-    ```
-2. put the checkpoint(*.pth) in [checkpoints/](./checkpoints)
-3. change args.config and args.load_from root path.
-4. change config/XXX.py data root path, and some other important options.
-If you want to use our toolbox to add some New Models, Data Pipelines, loss functions or some other operation,  **We provide [Tutorials](./docs/tutorials.md).**
+## **Usage**
+
 ## Testing
-```
-python test.py
-# or 
-python test_UWModels/test_XXX.py
-```
+1. Clone the repo
+2. Download the checkpoint from Dropbox: https://www.dropbox.com/s/fkoox0t3jwrf92q/checkpoint.rar?dl=0 or Baidu Cloud: https://pan.baidu.com/s/1aWckT66dWbB0-h1DJxIUsg
+3. Generate the preprocessing data by using the "generate_test_data.m" in folder named generate_test_data
+(Also, there is a modified code that includes WB, HE and GC in Python code without a need for preprocessing by MATLAB. Thanks a lot, Branimir Ambrekovic <branimir@wave-tech.com>. Branimir also upgraded it to work with TF2.0. You can find the modified code in folder named testing_code_by_Branimir Ambrekovic. More details can be found in B's codes.) 
+4. Put the inputs to corresponding folders (raw images to "test_real",  WB images to "wb_real", GC images to "gc_real", HE images to "ce_real")
+5. Python main_test.py
+6. Find the result in "test_real"
+
 ## Training
-```
-python -m visdom.server			# open this in a single terminal
-python train.py --gpus XX 		# XX means use numbers of gpus
-```
-## Contact Us
-If you have any questions, please contact us (yudongwang@tju.edu.cn or yudongwang1226@gmail.com).
-Bibliography entry for citation:
-```
-@article{wang2021uiec,
-title = {{UIEC\^{}2-Net}: CNN-based underwater image enhancement using two color space},
-journal = {Signal Processing: Image Communication},
-volume = {96},
-pages = {116250},
-year = {2021},
-issn = {0923-5965},
-doi = {https://doi.org/10.1016/j.image.2021.116250},
-url = {https://www.sciencedirect.com/science/article/pii/S0923596521001004},
-author = {Yudong Wang and Jichang Guo and Huan Gao and Huihui Yue},
-}
-```
+1. Clone the repo
+2. Download the VGG-pretrained model from Dropbox: https://drive.google.com/open?id=1asWe_rCduu6f09uiAz_aEP4KAiuoVSRS or Baidu Cloud: https://pan.baidu.com/s/1seDVBooFkmaJ6qF5kuAIsQ (Password: c0nj) (It's preparing for perception loss.)
+2. Set the network parameters, including learning rate, batch, weights of losses, etc., according to the paper
+3. Generate the preprocessing training data by using the "generate_training_data.m" in folder named generate_test_data
+4. Put the training data to corresponding folders (raw images to "input_train",  WB images to "input_wb_train", GC images to "input_gc_train", HE images to "input_ce_train", Ground Truth images to "gt_train"); We randomly select the training data from our released dataset. The performance of different training data is almost same
+5. In this code, you can add validation data by preprocessing your validation data (with GT) by the "generate_validation_data.m" in folder named generate_test_data, then put them to the corresponding folders (raw images to "input_test",  WB images to "input_wb_test", GC images to "input_gc_test", HE images to "input_ce_test", Ground Truth images to "gt_test")
+6. For your convenience, we provide a set of training and testing data. You can find them by unziping "a set of training and testing data". However, the training data and testing data are diffrent from those used in our paper.
+5. Python main_.py
+6. Find checkpoint in the ./checkpoint/coarse_112
 
 
-
+# Contact Us
+If you have any questions, please contact us (lichongyi25@gmail.com or lichongyi@tju.edu.cn).

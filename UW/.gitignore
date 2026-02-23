@@ -12,3 +12,14 @@ input_wb_test/*
 input_wb_train/*
 testdata/*
 vgg-pretrained/*
+
+__pycache__/
+.idea/
+*.pyc
+*.pyo
+*.pyd
+venv/
+env/
+*.log
+*.tmp
+.DS_Store

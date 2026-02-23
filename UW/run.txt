@@ -1,3 +1,0 @@
-python -m visdom.server
-
-python train.py --gpus 0
