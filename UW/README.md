@@ -1,5 +1,7 @@
-# WaterNet 训练配置（基于UWEnhancement）
-本目录基于 [UWEnhancement](https://github.com/BIGWangYuDong/UWEnhancement) 开源项目适配，用于WaterNet水下图像增强模型的训练。
+# WaterNet 训练配置
+- 代码基础：Fork自 [BIGWangYuDong/UWEnhancement](https://github.com/BIGWangYuDong/UWEnhancement)
+- 本人Fork仓库地址：https://github.com/3220105783/UWEnhancement
+- 本地修改：仅适配自定义数据集路径和训练配置，核心逻辑未改动
 
 ## 代码来源与引用
 - 原项目地址：https://github.com/BIGWangYuDong/UWEnhancement
