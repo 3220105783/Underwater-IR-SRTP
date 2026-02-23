@@ -1,0 +1,10 @@
+cython
+numpy
+Pillow>=8.1.1
+tensorboardX
+tensorboard
+yapf==0.31.0
+adict
+visdom==0.1.8.9
+opencv-python
+matplotlib	
