@@ -5,8 +5,8 @@ test_name = 'Test'
 model = dict(type='WaterNet',
              get_parameter=True)
 dataset_type = 'AlignedDataset'
-data_root_train = '/DATA/Train/'                  # data root, default = DATA
-data_root_test = '/DATA/Test/'
+data_root_train = '/root/autodl-tmp/UW/DATA/Train/'                  # data root, default = DATA
+data_root_test = '/root/autodl-tmp/UW/DATA/Test/'
 train_ann_file_path = 'train.txt'        # txt file for loading images, default = train.txt
 val_ann_file_path = 'test.txt'          # txt file for loading images (validate during training process), default = test.txt
 test_ann_file_path = 'test.txt'          # txt file for loading images, default = test.txt
