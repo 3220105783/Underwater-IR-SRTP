@@ -27,10 +27,10 @@ test_pipeling = [dict(type='LoadImageFromFile', gt_type='color', get_gt=False),
 usebytescale = True                                     # if use output min->0, max->255, default is False (copy from scipy=1.1.0)
 
 data = dict(
-    samples_per_gpu=8,                                  # batch size, default = 4
-    workers_per_gpu=0,                                  # multi process, default = 4, debug uses 0
-    val_samples_per_gpu=1,                              # validate batch size, default = 1
-    val_workers_per_gpu=0,                              # validate multi process, default = 4
+    samples_per_gpu=24,                                  # batch size, default = 4
+    workers_per_gpu=8,                                  # multi process, default = 4, debug uses 0
+    val_samples_per_gpu=8,                              # validate batch size, default = 1
+    val_workers_per_gpu=8,                              # validate multi process, default = 4
     train=dict(                                         # load data in training process, debug uses 0
         type=dataset_type,
         ann_file=data_root_train + train_ann_file_path,
@@ -71,7 +71,7 @@ lr_config = dict(type='Epoch',          # Epoch or Iter
 
 # 需要写
 log_config = dict(
-    interval=1,
+    interval=50,
     hooks=[
         dict(type='TextLoggerHook', by_epoch=False),
         dict(type='TensorboardLoggerHook'),
@@ -80,11 +80,11 @@ log_config = dict(
 
 total_epoch = 1000
 total_iters = None                      # epoch before iters,
-work_dir = './checkpoints/WaterNet/1'      #
+work_dir = '/root/autodl-tmp/UW/checkpoints/WaterNet/1'      #
 load_from = None                        # only load network parameters
 resume_from = None                      # resume training
-save_freq_iters = 500                   # saving frequent (saving every XX iters)
-save_freq_epoch = 1                     # saving frequent (saving every XX epoch(s))
+save_freq_iters = 2000                   # saving frequent (saving every XX iters)
+save_freq_epoch = 5                     # saving frequent (saving every XX epoch(s))
 log_level = 'INFO'                      # The level of logging.
 
-savepath = 'results/WaterNet'
+savepath = '/root/autodl-tmp/UW/results/WaterNet'
