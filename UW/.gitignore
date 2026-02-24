@@ -11,7 +11,7 @@ input_train/*
 input_wb_test/*
 input_wb_train/*
 testdata/*
-vgg-pretrained/*
+vgg_pretrained/*
 logs/*
 
 __pycache__/
