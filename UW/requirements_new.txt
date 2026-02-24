@@ -1,7 +1,9 @@
 absl-py==1.4.0
-astor==0.8.1bleach==6.1.0
+astor==0.8.1
+bleach==6.1.0
 cached-property==1.5.2
-certifi==2024.8.30cycler==0.12.1
+certifi==2024.8.30
+cycler==0.12.1
 enum34==1.1.10
 gast==0.4.0
 grpcio==1.59.0
@@ -17,11 +19,10 @@ protobuf==3.20.3
 pyparsing==3.1.1
 python-dateutil==2.8.2
 scipy==1.10.1
-scipy-misc==1.1.0
 six==1.16.0
 tensorboard==1.15.0
 tensorflow-gpu==1.15.5
-tensorflow-tensorboard==1.15.0
+tensorflow-tensorboard==0.4.0
 termcolor==2.3.0
 Werkzeug==2.2.3
-zipp==3.17.0
+zipp==3.20.2
