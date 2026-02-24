@@ -6,4 +6,15 @@ model/
 .idea/
 # 排除Python编译缓存
 code/__pycache__/
+
+venv/
+env/
+
+# 全局缓存/日志
+*.log
+*.tmp
+.DS_Store
 __pycache__/
+*.pyc
+*.pyo
+*.pyd
