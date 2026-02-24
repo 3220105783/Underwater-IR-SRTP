@@ -1,0 +1,155 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="AutoImportSettings">
+    <option name="autoReloadType" value="SELECTIVE" />
+  </component>
+  <component name="ChangeListManager">
+    <list default="true" id="60bd60b3-e884-43c3-9dce-c2fc667ab3ff" name="更改" comment="进行一些修改,添加 TensorBoard 监控功能" />
+    <option name="SHOW_DIALOG" value="false" />
+    <option name="HIGHLIGHT_CONFLICTS" value="true" />
+    <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
+    <option name="LAST_RESOLUTION" value="IGNORE" />
+  </component>
+  <component name="Git.Settings">
+    <option name="PUSH_TAGS">
+      <GitPushTagMode>
+        <option name="argument" value="--tags" />
+        <option name="title" value="All" />
+      </GitPushTagMode>
+    </option>
+    <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$/UW" />
+  </component>
+  <component name="GitHubPullRequestSearchHistory">{
+  &quot;lastFilter&quot;: {
+    &quot;state&quot;: &quot;OPEN&quot;,
+    &quot;assignee&quot;: &quot;3220105783&quot;
+  }
+}</component>
+  <component name="GithubPullRequestsUISettings">{
+  &quot;selectedUrlAndAccountId&quot;: {
+    &quot;url&quot;: &quot;https://github.com/3220105783/Underwater-IR-SRTP.git&quot;,
+    &quot;accountId&quot;: &quot;ed0b3368-5016-4723-9b24-c6eeb032d9ae&quot;
+  }
+}</component>
+  <component name="ProjectColorInfo">{
+  &quot;customColor&quot;: &quot;&quot;,
+  &quot;associatedIndex&quot;: 7
+}</component>
+  <component name="ProjectId" id="37BEyhG6bhmsMeABcU9N2UFZ2lq" />
+  <component name="ProjectViewState">
+    <option name="hideEmptyMiddlePackages" value="true" />
+    <option name="showLibraryContents" value="true" />
+  </component>
+  <component name="PropertiesComponent">{
+  &quot;keyToString&quot;: {
+    &quot;ASKED_SHARE_PROJECT_CONFIGURATION_FILES&quot;: &quot;true&quot;,
+    &quot;ModuleVcsDetector.initialDetectionPerformed&quot;: &quot;true&quot;,
+    &quot;Python.write_txt.executor&quot;: &quot;Run&quot;,
+    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
+    &quot;git-widget-placeholder&quot;: &quot;master&quot;,
+    &quot;last_opened_file_path&quot;: &quot;C:/Users/LingZiheng/PycharmProjects/PythonProject&quot;,
+    &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,
+    &quot;node.js.detected.package.tslint&quot;: &quot;true&quot;,
+    &quot;node.js.selected.package.eslint&quot;: &quot;(autodetect)&quot;,
+    &quot;node.js.selected.package.tslint&quot;: &quot;(autodetect)&quot;,
+    &quot;nodejs_package_manager_path&quot;: &quot;npm&quot;,
+    &quot;settings.editor.selected.configurable&quot;: &quot;org.jetbrains.plugins.github.ui.GithubSettingsConfigurable&quot;,
+    &quot;vue.rearranger.settings.migration&quot;: &quot;true&quot;
+  }
+}</component>
+  <component name="SharedIndexes">
+    <attachedChunks>
+      <set>
+        <option value="bundled-js-predefined-d6986cc7102b-a71380e98a7c-JavaScript-PY-252.28238.29" />
+        <option value="bundled-python-sdk-a101402ee41c-968fe969f28a-com.jetbrains.pycharm.pro.sharedIndexes.bundled-PY-252.28238.29" />
+      </set>
+    </attachedChunks>
+  </component>
+  <component name="TaskManager">
+    <task active="true" id="Default" summary="默认任务">
+      <changelist id="60bd60b3-e884-43c3-9dce-c2fc667ab3ff" name="更改" comment="" />
+      <created>1766368320771</created>
+      <option name="number" value="Default" />
+      <option name="presentableId" value="Default" />
+      <updated>1766368320771</updated>
+      <workItem from="1766368322239" duration="120000" />
+      <workItem from="1766368455202" duration="666000" />
+      <workItem from="1766993316273" duration="58000" />
+      <workItem from="1767380851622" duration="30000" />
+      <workItem from="1768909128062" duration="134000" />
+      <workItem from="1770006168041" duration="1000" />
+      <workItem from="1771817883363" duration="913000" />
+      <workItem from="1771818809284" duration="7795000" />
+      <workItem from="1771832256659" duration="686000" />
+      <workItem from="1771832994056" duration="1693000" />
+      <workItem from="1771834717080" duration="362000" />
+      <workItem from="1771835349688" duration="999000" />
+      <workItem from="1771836483579" duration="126000" />
+      <workItem from="1771836964074" duration="98000" />
+      <workItem from="1771837089949" duration="90000" />
+      <workItem from="1771837344484" duration="36000" />
+      <workItem from="1771837475785" duration="1403000" />
+      <workItem from="1771842414188" duration="9826000" />
+      <workItem from="1771865300077" duration="8993000" />
+      <workItem from="1771947878354" duration="5578000" />
+    </task>
+    <task id="LOCAL-00001" summary="进行一些修改">
+      <option name="closed" value="true" />
+      <created>1771899765930</created>
+      <option name="number" value="00001" />
+      <option name="presentableId" value="LOCAL-00001" />
+      <option name="project" value="LOCAL" />
+      <updated>1771899765930</updated>
+    </task>
+    <task id="LOCAL-00002" summary="进行一些修改,添加 TensorBoard 监控功能">
+      <option name="closed" value="true" />
+      <created>1771954405155</created>
+      <option name="number" value="00002" />
+      <option name="presentableId" value="LOCAL-00002" />
+      <option name="project" value="LOCAL" />
+      <updated>1771954405155</updated>
+    </task>
+    <task id="LOCAL-00003" summary="进行一些修改,添加 TensorBoard 监控功能">
+      <option name="closed" value="true" />
+      <created>1771955139938</created>
+      <option name="number" value="00003" />
+      <option name="presentableId" value="LOCAL-00003" />
+      <option name="project" value="LOCAL" />
+      <updated>1771955139938</updated>
+    </task>
+    <task id="LOCAL-00004" summary="进行一些修改,添加 TensorBoard 监控功能">
+      <option name="closed" value="true" />
+      <created>1771955379378</created>
+      <option name="number" value="00004" />
+      <option name="presentableId" value="LOCAL-00004" />
+      <option name="project" value="LOCAL" />
+      <updated>1771955379378</updated>
+    </task>
+    <option name="localTasksCounter" value="5" />
+    <servers />
+  </component>
+  <component name="TypeScriptGeneratedFilesManager">
+    <option name="version" value="3" />
+  </component>
+  <component name="Vcs.Log.Tabs.Properties">
+    <option name="TAB_STATES">
+      <map>
+        <entry key="MAIN">
+          <value>
+            <State />
+          </value>
+        </entry>
+      </map>
+    </option>
+  </component>
+  <component name="VcsManagerConfiguration">
+    <MESSAGE value="进行一些修改" />
+    <MESSAGE value="进行一些修改,添加 TensorBoard 监控功能" />
+    <option name="LAST_COMMIT_MESSAGE" value="进行一些修改,添加 TensorBoard 监控功能" />
+  </component>
+  <component name="com.intellij.coverage.CoverageDataManagerImpl">
+    <SUITE FILE_PATH="coverage/__init___py$write_txt.coverage" NAME="write_txt 覆盖结果" MODIFIED="1771850588716" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/UW/tools" />
+  </component>
+</project>
