@@ -22,7 +22,6 @@ scipy==1.7.3
 six==1.16.0
 tensorboard==1.15.0
 tensorflow-gpu==1.15.5
-tensorflow-tensorboard==0.4.0
 termcolor==2.3.0
 Werkzeug==2.2.3
 zipp==3.20.2
