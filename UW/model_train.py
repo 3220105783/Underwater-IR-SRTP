@@ -25,7 +25,7 @@ class T_CNN(object):
                c_dim=3, 
                checkpoint_dir=None, 
                sample_dir=None,
-               log_dir = None  # 新增日志目录参数
+               tblog_dir = None  # 新增日志目录参数
                ):
 
     self.sess = sess
@@ -42,7 +42,7 @@ class T_CNN(object):
     self.df_dim = 64
     self.checkpoint_dir = checkpoint_dir
     self.sample_dir = sample_dir
-    self.log_dir = log_dir  # 初始化日志目录
+    self.tblog_dir = tblog_dir  # 初始化日志目录
     self.vgg_dir='/root/autodl-tmp/UW/vgg_pretrained/imagenet-vgg-verydeep-19.mat'
     self.CONTENT_LAYER = 'relu5_4'
     self.build_model()
@@ -51,11 +51,11 @@ class T_CNN(object):
 
   def _init_summary_writer(self):
     """Initialize the TensorBoard log writer"""
-    if self.log_dir is not None:
+    if self.tblog_dir is not None:
       # 按时间创建子目录，避免日志覆盖
       current_time = time.strftime("%Y%m%d-%H%M%S", time.localtime())
       self.summary_writer = tf.summary.FileWriter(
-        os.path.join(self.log_dir, current_time),
+        os.path.join(self.tblog_dir, current_time),
         self.sess.graph  # 写入计算图结构
       )
     else:

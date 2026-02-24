@@ -39,7 +39,7 @@ def main(_):
   if not os.path.exists(FLAGS.sample_dir):
     os.makedirs(FLAGS.sample_dir)
   # 创建必要目录
-  if not os.path.exists(FLAGS.log_dir):
+  if not os.path.exists(FLAGS.tblog_dir):
       os.makedirs(FLAGS.tblog_dir)
   
   with tf.Session() as sess:
@@ -52,7 +52,7 @@ def main(_):
                   c_dim=FLAGS.c_dim, 
                   checkpoint_dir=FLAGS.checkpoint_dir,
                   sample_dir=FLAGS.sample_dir,
-                  tblog_dir = FLAGS.log_dir  # 传递日志目录到模型
+                  tblog_dir = FLAGS.tblog_dir  # 传递日志目录到模型
                   )
 
     srcnn.train(FLAGS)
