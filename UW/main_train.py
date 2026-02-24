@@ -40,7 +40,7 @@ def main(_):
     os.makedirs(FLAGS.sample_dir)
   # 创建必要目录
   if not os.path.exists(FLAGS.log_dir):
-      os.makedirs(FLAGS.log_dir)
+      os.makedirs(FLAGS.tblog_dir)
   
   with tf.Session() as sess:
     srcnn = T_CNN(sess, 
