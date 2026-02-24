@@ -9,7 +9,6 @@ import random
 import matplotlib.pyplot as plt
 
 from PIL import Image  # for loading images as YCbCr format
-import scipy.misc
 import scipy.ndimage
 import numpy as np
 
@@ -38,7 +37,7 @@ def prepare_data(sess, dataset):
   data = data + glob.glob(os.path.join(data_dir, "*.jpg"))
   return data
 
-def imread(path, is_grayscale=False):
+#def imread(path, is_grayscale=False):
   """
   Read image using its path.
   Default value is gray-scale, and image is read by YCbCr format as the paper said.
@@ -50,10 +49,36 @@ def imread(path, is_grayscale=False):
     return scipy.misc.imread(path).astype(np.float)
 
     
-def imsave(image, path):
+#def imsave(image, path):
 
   imsaved = (inverse_transform(image)).astype(np.float)
   return scipy.misc.imsave(path, imsaved)
+
+def imread(path, is_grayscale=False):
+  """
+  Repalce scipy.misc.imread
+  Read image using its path.
+  Default value is gray-scale, and image is read by YCbCr format as the paper said.
+  """
+  img = Image.open(path)
+  if is_grayscale:
+    # Convert to grayscale image and then to a numpy array
+    img = img.convert('L')
+    return np.array(img).astype(np.float)
+  else:
+    # Convert to RGB and then to a numpy array (replacing the original YCbCr logic)
+    img = img.convert('RGB')
+    return np.array(img).astype(np.float)
+
+def imsave(image, path):
+  """Repalce scipy.misc.imsave"""
+  # First apply the inverse transform, then convert to the 0-255 range as uint8
+  imsaved = inverse_transform(image)
+  imsaved = (imsaved * 255).astype(np.uint8)
+  # Save with PIL
+  img = Image.fromarray(imsaved)
+  img.save(path)
+  return True
 
 def get_image(image_path,is_grayscale=False):
   image = imread(image_path, is_grayscale)
@@ -61,5 +86,12 @@ def get_image(image_path,is_grayscale=False):
 def get_lable(image_path,is_grayscale=False):
   image = imread(image_path, is_grayscale)
   return image/255.
-def imsave_lable(image, path):
+#def imsave_lable(image, path):
   return scipy.misc.imsave(path, image*255)
+
+def imsave_lable(image, path):
+  """Save label images, as a replacement for scipy.misc.imsave"""
+  img_data = (image * 255).astype(np.uint8)
+  img = Image.fromarray(img_data)
+  img.save(path)
+  return True
