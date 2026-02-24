@@ -12,6 +12,7 @@ input_wb_test/*
 input_wb_train/*
 testdata/*
 vgg-pretrained/*
+logs/*
 
 __pycache__/
 .idea/

@@ -44,7 +44,7 @@ def prepare_data(sess, dataset):
   """
 
   if is_grayscale:
-    return scipy.misc.imread(path, flatten=True).astype(np.float)
+    return scipy.misc.imread(path, flatten=True).astype(np.flgoat)
   else:
     return scipy.misc.imread(path).astype(np.float)
 

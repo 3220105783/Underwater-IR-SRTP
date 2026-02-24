@@ -24,7 +24,8 @@ class T_CNN(object):
                batch_size=2,
                c_dim=3, 
                checkpoint_dir=None, 
-               sample_dir=None
+               sample_dir=None,
+               log_dir = None  # 新增日志目录参数
                ):
 
     self.sess = sess
@@ -41,9 +42,24 @@ class T_CNN(object):
     self.df_dim = 64
     self.checkpoint_dir = checkpoint_dir
     self.sample_dir = sample_dir
+    self.log_dir = log_dir  # 初始化日志目录
     self.vgg_dir='/root/autodl-tmp/UW/vgg_pretrained/imagenet-vgg-verydeep-19.mat'
     self.CONTENT_LAYER = 'relu5_4'
     self.build_model()
+    # 初始化 TensorBoard SummaryWriter
+    self._init_summary_writer()
+
+  def _init_summary_writer(self):
+    """Initialize the TensorBoard log writer"""
+    if self.log_dir is not None:
+      # 按时间创建子目录，避免日志覆盖
+      current_time = time.strftime("%Y%m%d-%H%M%S", time.localtime())
+      self.summary_writer = tf.summary.FileWriter(
+        os.path.join(self.log_dir, current_time),
+        self.sess.graph  # 写入计算图结构
+      )
+    else:
+      self.summary_writer = None
 
   def build_model(self):
     self.images = tf.placeholder(tf.float32, [self.batch_size, self.image_height, self.image_width, self.c_dim], name='images')
@@ -69,6 +85,21 @@ class T_CNN(object):
     self.loss_h1= tf.reduce_mean(tf.abs(self.labels_image-self.pred_h1))
     self.loss = 0.05*self.loss_texture1+ self.loss_h1
     t_vars = tf.trainable_variables()
+
+    """"Add: Define TensorBoard monitoring metrics"""
+    # 标量监控（损失）
+    tf.summary.scalar('total_loss', self.loss)
+    tf.summary.scalar('loss_h1 (MAE)', self.loss_h1)
+    tf.summary.scalar('loss_texture1 (VGG)', self.loss_texture1)
+
+    # 图片监控（输入/标签/预测结果）
+    # 裁剪到前3张图片避免日志过大
+    tf.summary.image('input_images', self.images[:3], max_outputs=3)
+    tf.summary.image('label_images', self.labels_image[:3], max_outputs=3)
+    tf.summary.image('predicted_images', self.pred_h1[:3], max_outputs=3)
+
+    # 合并所有 summary
+    self.merged_summary = tf.summary.merge_all()
 
     self.saver = tf.train.Saver(max_to_keep=0)
     
@@ -176,7 +207,21 @@ class T_CNN(object):
           batch_image_input = np.array(batch_labels_image).astype(np.float32)
 
           counter += 1
-          _, err = self.sess.run([self.train_op, self.loss ], feed_dict={self.images: batch_input, self.images_wb: batch_wb_input, self.images_ce: batch_ce_input, self.images_gc: batch_gc_input, self.labels_image:batch_image_input})
+          # ========== 新增：运行训练+记录 Summary ==========
+          _, err, summary = self.sess.run(
+              [self.train_op, self.loss, self.merged_summary],
+              feed_dict={
+                  self.images: batch_input,
+                  self.images_wb: batch_wb_input,
+                  self.images_ce: batch_ce_input,
+                  self.images_gc: batch_gc_input,
+                  self.labels_image: batch_image_input
+              }
+          )
+
+          # 写入 TensorBoard 日志（每步/每100步）
+          if self.summary_writer is not None:
+            self.summary_writer.add_summary(summary, counter)
           # print(batch_light)
 
           if counter % 100 == 0:
@@ -212,8 +257,23 @@ class T_CNN(object):
               sample_inputs_gc_image = np.array(sample_gc_image).astype(np.float32)
               sample_inputs_lable_image = np.array(sample_lable_image).astype(np.float32)
 
-
-              err_test[idx_test] = self.sess.run(self.loss, feed_dict={self.images: sample_inputs_data, self.images_wb: sample_inputs_wb_image, self.images_ce: sample_inputs_ce_image, self.images_gc: sample_inputs_gc_image,self.labels_image:sample_inputs_lable_image})    
+              # ========== 新增：测试损失也写入 TensorBoard ==========
+              err_test[idx_test], test_summary = self.sess.run(
+                  [self.loss, self.merged_summary],
+                  feed_dict={
+                      self.images: sample_inputs_data,
+                      self.images_wb: sample_inputs_wb_image,
+                      self.images_ce: sample_inputs_ce_image,
+                      self.images_gc: sample_inputs_gc_image,
+                      self.labels_image: sample_inputs_lable_image
+                  }
+              )
+              # 写入测试集日志（标记为test_loss）
+              if self.summary_writer is not None:
+                  test_summary = tf.Summary(value=[
+                      tf.Summary.Value(tag='test_loss', simple_value=np.mean(err_test[idx_test]))
+                  ])
+                  self.summary_writer.add_summary(test_summary, counter)
 
             loss[ep]=np.mean(err_test)
             print(loss)

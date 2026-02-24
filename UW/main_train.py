@@ -23,6 +23,8 @@ flags.DEFINE_integer("c_dim", 3, "Dimension of image color. [3]")
 flags.DEFINE_string("checkpoint_dir", "/root/autodl-tmp/UW/checkpoint", "Name of checkpoint directory [checkpoint]")
 flags.DEFINE_string("sample_dir", "/root/autodl-tmp/UW/sample", "Name of sample directory [sample]")
 flags.DEFINE_string("test_data_dir", "/root/autodl-tmp/UW/testdata", "Name of sample directory [test]")
+"""Added new TensorBoard log directory"""
+flags.DEFINE_string("log_dir", "/root/autodl-tmp/UW/tensorboard_logs", "Directory for TensorBoard logs")
 flags.DEFINE_boolean("is_train", True, "True for training, False for testing [True]")
 FLAGS = flags.FLAGS
 
@@ -36,6 +38,9 @@ def main(_):
     os.makedirs(FLAGS.checkpoint_dir)
   if not os.path.exists(FLAGS.sample_dir):
     os.makedirs(FLAGS.sample_dir)
+  # 创建必要目录
+  if not os.path.exists(FLAGS.log_dir):
+      os.makedirs(FLAGS.log_dir)
   
   with tf.Session() as sess:
     srcnn = T_CNN(sess, 
@@ -46,7 +51,8 @@ def main(_):
                   batch_size=FLAGS.batch_size,
                   c_dim=FLAGS.c_dim, 
                   checkpoint_dir=FLAGS.checkpoint_dir,
-                  sample_dir=FLAGS.sample_dir
+                  sample_dir=FLAGS.sample_dir,
+                  log_dir = FLAGS.log_dir  # 传递日志目录到模型
                   )
 
     srcnn.train(FLAGS)
