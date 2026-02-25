@@ -92,16 +92,25 @@ class T_CNN(object):
     tf.summary.scalar('loss_h1 (MAE)', self.loss_h1)
     tf.summary.scalar('loss_texture1 (VGG)', self.loss_texture1)
 
+    """
     # 图片监控（输入/标签/预测结果）
     # 裁剪到前3张图片避免日志过大
     tf.summary.image('input_images', self.images[:3], max_outputs=3)
     tf.summary.image('label_images', self.labels_image[:3], max_outputs=3)
     tf.summary.image('predicted_images', self.pred_h1[:3], max_outputs=3)
+    """
+
+    def resize_images(images, height=64, width=64):
+        return tf.image.resize(images, [height, width])
+
+    tf.summary.image('input_images', resize_images(self.images[:1]), max_outputs=1)
+    tf.summary.image('label_images', resize_images(self.labels_image[:1]), max_outputs=1)
+    tf.summary.image('predicted_images', resize_images(self.pred_h1[:1]), max_outputs=1)
 
     # 合并所有 summary
     self.merged_summary = tf.summary.merge_all()
 
-    self.saver = tf.train.Saver(max_to_keep=0)
+    self.saver = tf.train.Saver(max_to_keep=3)
     
   def train(self, config):
     if config.is_train:     
@@ -220,7 +229,7 @@ class T_CNN(object):
           )
 
           # 写入 TensorBoard 日志（每步/每100步）
-          if self.summary_writer is not None:
+          if self.summary_writer is not None and counter % 10 == 0:
             self.summary_writer.add_summary(summary, counter)
           # print(batch_light)
 
@@ -269,7 +278,7 @@ class T_CNN(object):
                   }
               )
               # 写入测试集日志（标记为test_loss）
-              if self.summary_writer is not None:
+              if self.summary_writer is not None and counter % 10 == 0:
                   test_summary = tf.Summary(value=[
                       tf.Summary.Value(tag='test_loss', simple_value=np.mean(err_test[idx_test]))
                   ])
@@ -325,10 +334,22 @@ class T_CNN(object):
 
     if not os.path.exists(checkpoint_dir):
         os.makedirs(checkpoint_dir)
-
+    """
     self.saver.save(self.sess,
                     os.path.join(checkpoint_dir, model_name),
                     global_step=step)
+    """
+    # 保存checkpoint并获取保存路径
+    save_path = self.saver.save(
+        self.sess,
+        os.path.join(checkpoint_dir, model_name),
+        global_step=step
+    )
+    # 修改2：保存后立即删除当前生成的.meta文件
+    meta_file = f"{save_path}.meta"
+    if os.path.exists(meta_file):
+        os.remove(meta_file)
+        print(f"Deleted .meta file: {meta_file}")
 
   def load(self, checkpoint_dir):
     print(" [*] Reading checkpoints...")
