@@ -12,20 +12,20 @@ filepaths2 = dir(fullfile(folder2,'*.jpg'));
 global count
 count =1;
 
-if ~exist('test_real') 
-    mkdir('test_real')         
+if ~exist('real_test') 
+    mkdir('real_test')         
 end 
 
-if ~exist('wb_real') 
-    mkdir('wb_real')         
+if ~exist('real_wb') 
+    mkdir('real_wb')         
 end 
-if ~exist('ce_real') 
-    mkdir('ce_real')         
+if ~exist('real_ce') 
+    mkdir('real_ce')         
 end 
 
 
-if ~exist('gc_real') 
-    mkdir('gc_real')         
+if ~exist('real_gc') 
+    mkdir('real_gc')         
 end 
 
 for i=1:10000
@@ -48,10 +48,10 @@ for i=1:10000
     
     image1 = uint8(255*image1);
     
-    imwrite(image1,fullfile('test_real',filepaths2(i).name ));
-    imwrite(hazy_wb,fullfile('wb_real',filepaths2(i).name ));
-    imwrite(hazy_cont,fullfile('ce_real',filepaths2(i).name ));
-    imwrite(hazy_gamma,fullfile('gc_real',filepaths2(i).name ));
+    imwrite(image1,fullfile('real_test',filepaths2(i).name ));
+    imwrite(hazy_wb,fullfile('real_wb',filepaths2(i).name ));
+    imwrite(hazy_cont,fullfile('real_ce',filepaths2(i).name ));
+    imwrite(hazy_gamma,fullfile('real_gc',filepaths2(i).name ));
 
 
 end

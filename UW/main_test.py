@@ -36,23 +36,23 @@ def main(_):
     os.makedirs(FLAGS.checkpoint_dir)
   if not os.path.exists(FLAGS.sample_dir):
     os.makedirs(FLAGS.sample_dir)
-  filenames = os.listdir('/root/autodl-tmp/UW/test_real')
-  data_dir = os.path.join(os.getcwd(), '/root/autodl-tmp/UW/test_real')
+  filenames = os.listdir('/root/autodl-tmp/UW/real_test')
+  data_dir = os.path.join(os.getcwd(), '/root/autodl-tmp/UW/real_test')
   data = glob.glob(os.path.join(data_dir, "*.png"))
   test_data_list = data + glob.glob(os.path.join(data_dir, "*.jpg"))+glob.glob(os.path.join(data_dir, "*.bmp"))+glob.glob(os.path.join(data_dir, "*.jpeg"))
 
-  filenames1 = os.listdir('/root/autodl-tmp/UW/wb_real')
-  data_dir1 = os.path.join(os.getcwd(), '/root/autodl-tmp/UW/wb_real')
+  filenames1 = os.listdir('/root/autodl-tmp/UW/real_wb')
+  data_dir1 = os.path.join(os.getcwd(), '/root/autodl-tmp/UW/real_wb')
   data1 = glob.glob(os.path.join(data_dir1, "*.png"))
   test_data_list1 = data1 + glob.glob(os.path.join(data_dir1, "*.jpg"))+glob.glob(os.path.join(data_dir1, "*.bmp"))+glob.glob(os.path.join(data_dir1, "*.jpeg"))
 
-  filenames2 = os.listdir('/root/autodl-tmp/UW/ce_real')
-  data_dir2 = os.path.join(os.getcwd(), '/root/autodl-tmp/UW/ce_real')
+  filenames2 = os.listdir('/root/autodl-tmp/UW/real_ce')
+  data_dir2 = os.path.join(os.getcwd(), '/root/autodl-tmp/UW/real_ce')
   data2 = glob.glob(os.path.join(data_dir2, "*.png"))
   test_data_list2 = data2 + glob.glob(os.path.join(data_dir2, "*.jpg"))+glob.glob(os.path.join(data_dir2, "*.bmp"))+glob.glob(os.path.join(data_dir2, "*.jpeg"))
 
-  filenames3 = os.listdir('/root/autodl-tmp/UW/gc_real')
-  data_dir3 = os.path.join(os.getcwd(), '/root/autodl-tmp/UW/wb_real')
+  filenames3 = os.listdir('/root/autodl-tmp/UW/real_gc')
+  data_dir3 = os.path.join(os.getcwd(), '/root/autodl-tmp/UW/real_gc')
   data3 = glob.glob(os.path.join(data_dir3, "*.png"))
   test_data_list3 = data3 + glob.glob(os.path.join(data_dir3, "*.jpg"))+glob.glob(os.path.join(data_dir3, "*.bmp"))+glob.glob(os.path.join(data_dir3, "*.jpeg"))
 
