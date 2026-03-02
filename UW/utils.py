@@ -53,7 +53,6 @@ def prepare_data(sess, dataset):
 
   imsaved = (inverse_transform(image)).astype(np.float)
   return scipy.misc.imsave(path, imsaved)
-
 def imread(path, is_grayscale=False):
   """
   Repalce scipy.misc.imread
@@ -79,7 +78,6 @@ def imsave(image, path):
   img = Image.fromarray(imsaved)
   img.save(path)
   return True
-
 def get_image(image_path,is_grayscale=False):
   image = imread(image_path, is_grayscale)
   return image/255

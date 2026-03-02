@@ -11,13 +11,13 @@ import pprint
 import os
 
 flags = tf.app.flags
-flags.DEFINE_integer("epoch", 400, "Number of epoch [120]")
-flags.DEFINE_integer("batch_size", 16, "The size of batch images [128]")
+flags.DEFINE_integer("epoch",200, "Number of epoch [120]")
+flags.DEFINE_integer("batch_size", 64, "The size of batch images [128]")
 flags.DEFINE_integer("image_height", 112, "The size of image to use [230]")
 flags.DEFINE_integer("image_width", 112, "The size of image to use [310]")
 flags.DEFINE_integer("label_height", 112 ,"The size of label to produce [230]")
 flags.DEFINE_integer("label_width", 112, "The size of label to produce [310]")
-flags.DEFINE_float("learning_rate", 0.001, "The learning rate of gradient descent algorithm [1e-4]")
+flags.DEFINE_float("learning_rate", 0.0001, "The learning rate of gradient descent algorithm [1e-4]")
 flags.DEFINE_float("beta1", 0.5, "Momentum term of adam [0.5]")
 flags.DEFINE_integer("c_dim", 3, "Dimension of image color. [3]")
 flags.DEFINE_string("checkpoint_dir", "/root/autodl-tmp/UW/checkpoint", "Name of checkpoint directory [checkpoint]")
