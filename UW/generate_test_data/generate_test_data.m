@@ -7,7 +7,7 @@ clear all;
 close all;
 
 folder2 = 'folder of raw images';
-filepaths2 = dir(fullfile(folder2,'*.jpg'));
+filepaths2 = dir(fullfile(folder2,'*.png'));
 
 global count
 count =1;
