@@ -5,8 +5,8 @@ from PIL import Image
 
 # 你的 mask 文件夹路径（训练集+验证集）
 mask_dirs = [
-    "C:/Users/LingZiheng/PycharmProjects/PythonProject/dataset/train/mask",
-    "C:/Users/LingZiheng/PycharmProjects/PythonProject/dataset/val/mask"
+    "/dataset/train/mask",
+    "/dataset/val/mask"
 ]
 
 

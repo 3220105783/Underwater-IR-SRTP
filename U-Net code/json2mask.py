@@ -4,8 +4,8 @@ from PIL import Image
 import numpy as np
 
 # 配置路径（根据你的实际路径修改）
-IMAGE_DIR = "C:/Users/LingZiheng/PycharmProjects/PythonProject/dataset/images"  # 原图和json文件所在目录
-MASK_DIR = "C:/Users/LingZiheng/PycharmProjects/PythonProject/dataset/masks"  # 生成的mask图保存目录
+IMAGE_DIR = "/dataset/images"  # 原图和json文件所在目录
+MASK_DIR = "/dataset/masks"  # 生成的mask图保存目录
 
 # 创建mask保存目录
 if not os.path.exists(MASK_DIR):

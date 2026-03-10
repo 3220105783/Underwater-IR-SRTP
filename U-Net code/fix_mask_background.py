@@ -49,8 +49,8 @@ def fix_mask_background(mask_dir, target_background=0):
 
 if __name__ == "__main__":
     # 替换为你的mask文件夹路径（训练集和验证集都要处理）
-    train_mask_dir = "C:/Users/LingZiheng/PycharmProjects/PythonProject/dataset/train/mask"
-    val_mask_dir = "C:/Users/LingZiheng/PycharmProjects/PythonProject/dataset/val/mask"
+    train_mask_dir = "/dataset/train/mask"
+    val_mask_dir = "/dataset/val/mask"
 
     # 先处理训练集mask
     print("开始处理训练集mask图...")

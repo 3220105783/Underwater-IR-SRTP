@@ -2,7 +2,7 @@ model/
 dataset/
 predict_results/
 
-code/__pycache__/
+U-Net code/__pycache__/
 
 venv/
 env/

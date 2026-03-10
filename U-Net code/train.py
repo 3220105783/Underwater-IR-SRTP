@@ -15,13 +15,13 @@ batch_size = 1  # 按显存调整，RTX2050 4GB建议设为1
 epochs = 60  # 总训练轮次（可按需修改）
 fixed_lr = 1e-4  # 固定学习率（无需调整）
 patience = 20  # 早停耐心值（连续8轮IoU无提升则停止）
-model_save_path = "C:/Users/LingZiheng/PycharmProjects/PythonProject/model/best_crack_model.pth"
+model_save_path = "/model/best_crack_model.pth"
 
 # 数据集路径（修改为你的实际路径）
-train_img_dir = "C:/Users/LingZiheng/PycharmProjects/PythonProject/dataset/train/img"
-train_mask_dir = "C:/Users/LingZiheng/PycharmProjects/PythonProject/dataset/train/mask"
-val_img_dir = "C:/Users/LingZiheng/PycharmProjects/PythonProject/dataset/val/img"
-val_mask_dir = "C:/Users/LingZiheng/PycharmProjects/PythonProject/dataset/val/mask"
+train_img_dir = "/dataset/train/img"
+train_mask_dir = "/dataset/train/mask"
+val_img_dir = "/dataset/val/img"
+val_mask_dir = "/dataset/val/mask"
 
 
 # -------------------------- 数据加载 --------------------------

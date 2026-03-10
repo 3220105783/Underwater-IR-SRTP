@@ -3,7 +3,7 @@ import os
 import numpy as np
 from PIL import Image
 
-mask_dir = "C:/Users/LingZiheng/PycharmProjects/PythonProject/dataset/train/mask"  # 你的mask目录
+mask_dir = "/dataset/train/mask"  # 你的mask目录
 
 print("开始检查mask图像素值（正常：裂缝=255，背景=0）")
 print("=" * 60)

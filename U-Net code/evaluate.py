@@ -10,9 +10,9 @@ from utils import calculate_iou  # 复用IoU计算函数
 
 # -------------------------- 配置参数 --------------------------
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-model_path = "C:/Users/LingZiheng/PycharmProjects/PythonProject/model/best_crack_model.pth"  # 训练好的模型路径
-val_img_dir = "C:/Users/LingZiheng/PycharmProjects/PythonProject/dataset/val/img"  # 验证集原图目录
-val_mask_dir = "C:/Users/LingZiheng/PycharmProjects/PythonProject/dataset/val/mask"  # 验证集mask目录
+model_path = "/model/best_crack_model.pth"  # 训练好的模型路径
+val_img_dir = "/dataset/val/img"  # 验证集原图目录
+val_mask_dir = "/dataset/val/mask"  # 验证集mask目录
 batch_size = 2  # 与训练时一致，或根据显存调整
 
 
