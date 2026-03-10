@@ -6,7 +6,7 @@ tf.reset_default_graph()
 
 
 class UNet:
-    def __init__(self, n_channels=3, n_classes=1, input_size=(512, 512)):
+    def __init__(self, n_channels=3, n_classes=1, input_size=(768, 768)):
         self.n_channels = n_channels
         self.n_classes = n_classes
         self.input_size = input_size

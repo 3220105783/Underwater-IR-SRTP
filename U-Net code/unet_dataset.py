@@ -5,7 +5,7 @@ import tensorflow as tf
 from PIL import Image
 
 # 统一尺寸（与原代码一致）
-TARGET_SIZE = (512, 512)
+TARGET_SIZE = (768, 768)
 
 # ImageNet均值/标准差（TF1.x标准化）
 MEAN = [0.485, 0.456, 0.406]

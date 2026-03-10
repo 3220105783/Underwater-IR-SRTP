@@ -37,8 +37,8 @@ def build_train_graph():
     )
 
     # 2. 构建模型
-    inputs = tf.placeholder(tf.float32, [None, 512, 512, 3], name='inputs')
-    masks = tf.placeholder(tf.float32, [None, 512, 512, 1], name='masks')
+    inputs = tf.placeholder(tf.float32, [None, 768, 768, 3], name='inputs')
+    masks = tf.placeholder(tf.float32, [None, 768, 768, 1], name='masks')
 
     unet = UNet(n_channels=3, n_classes=1)
     logits = unet.build_model(inputs)

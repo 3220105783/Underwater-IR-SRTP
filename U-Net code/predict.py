@@ -15,7 +15,7 @@ MODEL_PATH = "/model/best_crack_model.ckpt"
 TEST_IMG_DIR = "/dataset/val/img"
 TEST_MASK_DIR = "/dataset/val/mask"
 SAVE_RESULT_DIR = "../predict_results_tf1"
-TARGET_SIZE = (512, 512)
+TARGET_SIZE = (768, 768)
 
 # ImageNet均值/标准差
 MEAN = [0.485, 0.456, 0.406]
@@ -49,7 +49,7 @@ def predict():
     tf.reset_default_graph()
 
     # 构建模型
-    inputs = tf.placeholder(tf.float32, [1, 512, 512, 3], name='inputs')
+    inputs = tf.placeholder(tf.float32, [1, 768, 768, 3], name='inputs')
     unet = UNet(n_channels=3, n_classes=1)
     logits = unet.build_model(inputs)
     pred_mask = tf.nn.sigmoid(logits) > 0.5

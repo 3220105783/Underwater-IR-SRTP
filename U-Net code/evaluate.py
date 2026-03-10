@@ -28,8 +28,8 @@ def evaluate():
     )
 
     # 构建模型
-    inputs = tf.placeholder(tf.float32, [None, 512, 512, 3], name='inputs')
-    masks = tf.placeholder(tf.float32, [None, 512, 512, 1], name='masks')
+    inputs = tf.placeholder(tf.float32, [None, 768, 768, 3], name='inputs')
+    masks = tf.placeholder(tf.float32, [None, 768, 768, 1], name='masks')
 
     unet = UNet(n_channels=3, n_classes=1)
     logits = unet.build_model(inputs)
@@ -84,11 +84,6 @@ def evaluate():
         avg_precision = total_precision / steps
         avg_recall = total_recall / steps
         avg_f1 = total_f1 / steps
-
-        #avg_iou *= 1.9
-        #avg_precision *= 1.45
-        #avg_recall *= 1.1
-        #avg_f1 *= 1.01
 
         # 整理结果
         final_metrics = {
