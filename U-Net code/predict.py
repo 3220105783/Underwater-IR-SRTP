@@ -1,80 +1,113 @@
+# -*- coding: utf-8 -*-
 import os
-import torch
 import numpy as np
+import tensorflow as tf
 from PIL import Image
 import matplotlib.pyplot as plt
 from unet_model import UNet
-from dataset import val_transform  # 复用验证集的预处理
 
-# 配置路径
-model_path = "../model/best_unet_crack.pth"  # 训练好的模型路径
-test_img_dir = "../dataset/val/img"  # 测试图片目录（用验证集测试）
-save_result_dir = "../predict_results"  # 预测结果保存目录
-device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+# 配置参数
+os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+config = tf.ConfigProto()
+config.gpu_options.allow_growth = True
 
-# 创建结果保存目录
-if not os.path.exists(save_result_dir):
-    os.makedirs(save_result_dir)
+MODEL_PATH = "/model/best_crack_model.ckpt"
+TEST_IMG_DIR = "/dataset/val/img"
+TEST_MASK_DIR = "/dataset/val/mask"
+SAVE_RESULT_DIR = "../predict_results_tf1"
+TARGET_SIZE = (512, 512)
 
-# 加载模型
-model = UNet(n_channels=3, n_classes=1).to(device)
-model.load_state_dict(torch.load(model_path))
-model.eval()  # 切换到评估模式
+# ImageNet均值/标准差
+MEAN = [0.485, 0.456, 0.406]
+STD = [0.229, 0.224, 0.225]
 
 
-# 预测函数
-def predict_image(img_path):
+def preprocess_img(img_path):
+    """单张图片预处理"""
     # 读取图片
-    image = Image.open(img_path).convert("RGB")
-    img_np = np.array(image)
+    img = Image.open(img_path).convert("RGB")
+    img_np = np.array(img)
 
-    # 预处理（与训练时一致）
-    transform = val_transform
-    augmented = transform(image=img_np)
-    img_tensor = augmented["image"].unsqueeze(0).to(device)  # 增加batch维度
+    # 调整尺寸
+    img_resized = Image.fromarray(img_np).resize(TARGET_SIZE, Image.BILINEAR)
+    img_resized = np.array(img_resized, dtype=np.float32) / 255.0
 
-    # 预测
-    with torch.no_grad():
-        output = model(img_tensor)
-        pred_mask = torch.sigmoid(output) > 0.5  # 二值化（阈值0.5）
-        pred_mask = pred_mask.squeeze(0).squeeze(0).cpu().numpy()  # 去除多余维度
+    # 标准化
+    img_resized = (img_resized - MEAN) / STD
 
-    return img_np, pred_mask
+    # 添加batch维度
+    img_input = np.expand_dims(img_resized, axis=0)
+    return img_np, img_input
 
 
-# 批量预测并可视化
-test_img_names = [f for f in os.listdir(test_img_dir) if f.endswith((".jpg", ".png"))]
-for img_name in test_img_names:
-    img_path = os.path.join(test_img_dir, img_name)
-    img_np, pred_mask = predict_image(img_path)
+def predict():
+    # 创建保存目录
+    if not os.path.exists(SAVE_RESULT_DIR):
+        os.makedirs(SAVE_RESULT_DIR)
 
-    # 读取真实mask（用于对比）
-    mask_name = img_name.replace(".jpg", "_mask.png").replace(".png", "_mask.png")
-    mask_path = os.path.join("../dataset/val/mask", mask_name)
-    true_mask = np.array(Image.open(mask_path).convert("L")) / 255.0  # 归一化到0-1
+    # 1. 构建图
+    tf.reset_default_graph()
 
-    # 可视化（原图 + 真实mask + 预测mask）
-    plt.figure(figsize=(15, 5))
-    plt.subplot(1, 3, 1)
-    plt.imshow(img_np)
-    plt.title("Original Image")
-    plt.axis("off")
+    # 构建模型
+    inputs = tf.placeholder(tf.float32, [1, 512, 512, 3], name='inputs')
+    unet = UNet(n_channels=3, n_classes=1)
+    logits = unet.build_model(inputs)
+    pred_mask = tf.nn.sigmoid(logits) > 0.5
+    pred_mask = tf.cast(pred_mask, tf.float32)
 
-    plt.subplot(1, 3, 2)
-    plt.imshow(true_mask, cmap="gray")
-    plt.title("True Mask")
-    plt.axis("off")
+    # 加载模型
+    saver = tf.train.Saver()
 
-    plt.subplot(1, 3, 3)
-    plt.imshow(pred_mask, cmap="gray")
-    plt.title("Predicted Mask")
-    plt.axis("off")
+    # 2. 启动Session预测
+    with tf.Session(config=config) as sess:
+        saver.restore(sess, MODEL_PATH)
+        print(f"Model loaded successfully: {MODEL_PATH}")
 
-    # 保存结果
-    save_path = os.path.join(save_result_dir, f"result_{img_name}")
-    plt.tight_layout()
-    plt.savefig(save_path, dpi=150, bbox_inches="tight")
-    plt.close()
-    print(f"预测结果已保存：{save_path}")
+        # 遍历测试图片
+        test_img_names = [f for f in os.listdir(TEST_IMG_DIR) if f.endswith((".jpg", ".png"))]
+        for img_name in test_img_names:
+            img_path = os.path.join(TEST_IMG_DIR, img_name)
 
-print("所有图片预测完成！结果保存在：", save_result_dir)
+            # 预处理
+            img_np, img_input = preprocess_img(img_path)
+
+            # 预测
+            pred_mask_val = sess.run(pred_mask, feed_dict={inputs: img_input})
+            pred_mask_val = np.squeeze(pred_mask_val)  # 去除batch/通道维度
+
+            # 读取真实mask
+            mask_name = img_name.replace(".jpg", "_mask.png").replace(".png", "_mask.png")
+            mask_path = os.path.join(TEST_MASK_DIR, mask_name)
+            true_mask = np.array(Image.open(mask_path).convert("L")) / 255.0
+            true_mask = np.array(Image.fromarray(true_mask).resize(TARGET_SIZE, Image.NEAREST))
+
+            # 可视化
+            plt.figure(figsize=(15, 5))
+
+            plt.subplot(1, 3, 1)
+            plt.imshow(img_np)
+            plt.title("Original Image")
+            plt.axis("off")
+
+            plt.subplot(1, 3, 2)
+            plt.imshow(true_mask, cmap="gray")
+            plt.title("True Mask")
+            plt.axis("off")
+
+            plt.subplot(1, 3, 3)
+            plt.imshow(pred_mask_val, cmap="gray")
+            plt.title("Predicted Mask")
+            plt.axis("off")
+
+            # 保存结果
+            save_path = os.path.join(SAVE_RESULT_DIR, f"result_{img_name}")
+            plt.tight_layout()
+            plt.savefig(save_path, dpi=150, bbox_inches="tight")
+            plt.close()
+            print(f"Prediction results saved: {save_path}")
+
+    print(f"All images prediction completed! Results saved in: {SAVE_RESULT_DIR}")
+
+
+if __name__ == "__main__":
+    predict()

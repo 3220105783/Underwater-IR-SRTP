@@ -1,89 +1,84 @@
-import torch
-import torch.nn as nn
-import torch.nn.functional as F
+# -*- coding: utf-8 -*-
+import tensorflow as tf
 
-class DoubleConv(nn.Module):
-    """(卷积层 → BN → ReLU) × 2"""
-    def __init__(self, in_channels, out_channels):
-        super(DoubleConv, self).__init__()
-        self.double_conv = nn.Sequential(
-            nn.Conv2d(in_channels, out_channels, kernel_size=3, padding=1, bias=False),
-            nn.BatchNorm2d(out_channels),
-            nn.ReLU(inplace=True),
-            nn.Conv2d(out_channels, out_channels, kernel_size=3, padding=1, bias=False),
-            nn.BatchNorm2d(out_channels),
-            nn.ReLU(inplace=True)
-        )
+tf.disable_eager_execution()  # TF1.x必须禁用eager模式
+tf.reset_default_graph()
 
-    def forward(self, x):
-        return self.double_conv(x)
 
-class Down(nn.Module):
-    """下采样：MaxPool → DoubleConv"""
-    def __init__(self, in_channels, out_channels):
-        super(Down, self).__init__()
-        self.maxpool_conv = nn.Sequential(
-            nn.MaxPool2d(2),
-            DoubleConv(in_channels, out_channels)
-        )
-
-    def forward(self, x):
-        return self.maxpool_conv(x)
-
-class Up(nn.Module):
-    """上采样：转置卷积 → 拼接 → DoubleConv"""
-    def __init__(self, in_channels, out_channels):
-        super(Up, self).__init__()
-        # 转置卷积上采样
-        self.up = nn.ConvTranspose2d(in_channels, in_channels//2, kernel_size=2, stride=2)
-        self.conv = DoubleConv(in_channels, out_channels)
-
-    def forward(self, x1, x2):
-        # 上采样
-        x1 = self.up(x1)
-        # 拼接（处理尺寸不匹配问题）
-        diffY = x2.size()[2] - x1.size()[2]
-        diffX = x2.size()[3] - x1.size()[3]
-        x1 = F.pad(x1, [diffX//2, diffX - diffX//2, diffY//2, diffY - diffY//2])
-        # 拼接通道维度
-        x = torch.cat([x2, x1], dim=1)
-        return self.conv(x)
-
-class OutConv(nn.Module):
-    """输出层：1x1卷积将通道数转为1（二分类）"""
-    def __init__(self, in_channels, out_channels):
-        super(OutConv, self).__init__()
-        self.conv = nn.Conv2d(in_channels, out_channels, kernel_size=1)
-
-    def forward(self, x):
-        return self.conv(x)
-
-class UNet(nn.Module):
-    def __init__(self, n_channels=3, n_classes=1):
-        super(UNet, self).__init__()
+class UNet:
+    def __init__(self, n_channels=3, n_classes=1, input_size=(512, 512)):
         self.n_channels = n_channels
         self.n_classes = n_classes
+        self.input_size = input_size
 
-        self.inc = DoubleConv(n_channels, 64)  # 输入3通道→64通道
-        self.down1 = Down(64, 128)
-        self.down2 = Down(128, 256)
-        self.down3 = Down(256, 512)
-        self.down4 = Down(512, 1024)  # 下采样到最小尺度
-        self.up1 = Up(1024, 512)
-        self.up2 = Up(512, 256)
-        self.up3 = Up(256, 128)
-        self.up4 = Up(128, 64)
-        self.outc = OutConv(64, n_classes)
+    def double_conv(self, x, out_channels, name="double_conv"):
+        """(Conv → BN → ReLU) × 2（TF1.x版）"""
+        with tf.variable_scope(name):
+            # 第一层卷积
+            x = tf.layers.conv2d(
+                x, out_channels, kernel_size=3, padding='same',
+                use_bias=False, name='conv1'
+            )
+            x = tf.layers.batch_normalization(x, name='bn1')
+            x = tf.nn.relu(x, name='relu1')
 
-    def forward(self, x):
-        x1 = self.inc(x)
-        x2 = self.down1(x1)
-        x3 = self.down2(x2)
-        x4 = self.down3(x3)
-        x5 = self.down4(x4)
-        x = self.up1(x5, x4)
-        x = self.up2(x, x3)
-        x = self.up3(x, x2)
-        x = self.up4(x, x1)
-        logits = self.outc(x)
+            # 第二层卷积
+            x = tf.layers.conv2d(
+                x, out_channels, kernel_size=3, padding='same',
+                use_bias=False, name='conv2'
+            )
+            x = tf.layers.batch_normalization(x, name='bn2')
+            x = tf.nn.relu(x, name='relu2')
+        return x
+
+    def down_sample(self, x, out_channels, name="down"):
+        """下采样：MaxPool → DoubleConv"""
+        with tf.variable_scope(name):
+            x = tf.layers.max_pooling2d(x, pool_size=2, strides=2, name='maxpool')
+            x = self.double_conv(x, out_channels, name='double_conv')
+        return x
+
+    def up_sample(self, x1, x2, out_channels, name="up"):
+        """上采样：转置卷积 → 拼接 → DoubleConv"""
+        with tf.variable_scope(name):
+            # 转置卷积上采样（匹配PyTorch ConvTranspose2d）
+            x1 = tf.layers.conv2d_transpose(
+                x1, x1.get_shape()[-1] // 2, kernel_size=2, strides=2,
+                padding='same', use_bias=False, name='transpose_conv'
+            )
+
+            # 处理尺寸不匹配（padding）
+            x1_shape = tf.shape(x1)
+            x2_shape = tf.shape(x2)
+            diff_h = x2_shape[1] - x1_shape[1]
+            diff_w = x2_shape[2] - x1_shape[2]
+            x1 = tf.pad(x1, [[0, 0], [diff_h // 2, diff_h - diff_h // 2], [diff_w // 2, diff_w - diff_w // 2], [0, 0]])
+
+            # 拼接通道维度（x2在前，x1在后）
+            x = tf.concat([x2, x1], axis=-1, name='concat')
+            x = self.double_conv(x, out_channels, name='double_conv')
+        return x
+
+    def build_model(self, inputs):
+        """构建完整U-Net模型（返回logits）"""
+        # 输入层
+        x1 = self.double_conv(inputs, 64, name='inc')
+
+        # 下采样
+        x2 = self.down_sample(x1, 128, name='down1')
+        x3 = self.down_sample(x2, 256, name='down2')
+        x4 = self.down_sample(x3, 512, name='down3')
+        x5 = self.down_sample(x4, 1024, name='down4')
+
+        # 上采样
+        x = self.up_sample(x5, x4, 512, name='up1')
+        x = self.up_sample(x, x3, 256, name='up2')
+        x = self.up_sample(x, x2, 128, name='up3')
+        x = self.up_sample(x, x1, 64, name='up4')
+
+        # 输出层（1x1卷积，无激活）
+        logits = tf.layers.conv2d(
+            x, self.n_classes, kernel_size=1, padding='same',
+            name='out_conv'
+        )
         return logits
