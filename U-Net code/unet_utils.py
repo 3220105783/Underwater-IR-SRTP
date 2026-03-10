@@ -88,3 +88,15 @@ def calculate_metrics(pred_logits, target):
         'accuracy': accuracy, 'precision': precision,
         'recall': recall, 'f1': f1
     }
+
+
+# 新增DSC计算函数
+def calculate_dsc(pred_logits, target, smooth=1e-6):
+    """计算DSC（Dice Similarity Coefficient）"""
+    pred = tf.nn.sigmoid(pred_logits)
+    pred_flat = tf.reshape(pred, [-1])
+    target_flat = tf.reshape(tf.cast(target, tf.float32), [-1])
+
+    intersection = tf.reduce_sum(pred_flat * target_flat)
+    dsc = (2. * intersection + smooth) / (tf.reduce_sum(pred_flat) + tf.reduce_sum(target_flat) + smooth)
+    return dsc
