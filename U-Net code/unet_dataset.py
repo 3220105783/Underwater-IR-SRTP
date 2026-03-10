@@ -65,7 +65,7 @@ def load_image_mask_pair(img_path, mask_path, is_train=True):
 
 def build_dataset(img_dir, mask_dir, batch_size=1, is_train=True, shuffle=True):
     """构建TF1.x Dataset（替代PyTorch DataLoader）"""
-    # 匹配文件名（xxx.jpg ↔ xxx_mask.png）
+    # 匹配文件名（xxx.png ↔ xxx_mask.png）
     img_suffixes = ('.jpg', '.jpeg', '.png', '.bmp')
     mask_map = {}
 
@@ -86,7 +86,7 @@ def build_dataset(img_dir, mask_dir, batch_size=1, is_train=True, shuffle=True):
                 mask_paths.append(mask_map[img_prefix])
 
     if len(img_paths) == 0:
-        raise ValueError("No matching samples found! Please check the naming convention:  image xxx.jpg → mask xxx_mask.png")
+        raise ValueError("No matching samples found! Please check the naming convention:  image xxx.png → mask xxx_mask.png")
 
     # 构建TF Dataset
     dataset = tf.data.Dataset.from_tensor_slices((img_paths, mask_paths))
