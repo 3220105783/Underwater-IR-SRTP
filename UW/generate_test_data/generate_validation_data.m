@@ -7,9 +7,9 @@ clear all;
 close all;
 
 folder2 = 'folder of raw images';
-filepaths2 = dir(fullfile(folder2,'*.jpg'));
-folder3 = 'folder of GT images';
-filepaths3 = dir(fullfile(folder3,'*.jpg'));
+filepaths2 = dir(fullfile(folder2,'*.png'));
+folder3 = 'folder of gt images';
+filepaths3 = dir(fullfile(folder3,'*.png'));
 
 global count
 count =1;
@@ -58,3 +58,6 @@ for i=1:10000
     imwrite(hazy_cont,fullfile('input_ce_test',filepaths2(i).name ));
     imwrite(hazy_gamma,fullfile('input_gc_test',filepaths2(i).name ));
     imwrite(GT,fullfile('gt_test',filepaths2(i).name ));
+    S = ['Successfuly saved ', filepaths2(i).name];
+    disp(S);
+end
