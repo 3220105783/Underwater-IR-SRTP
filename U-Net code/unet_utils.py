@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 import tensorflow as tf
 
-
 def calculate_iou(pred_logits, target, threshold=0.5, smooth=1e-6):
     """TF1.x版IoU计算（匹配原逻辑）"""
     # Sigmoid+二值化

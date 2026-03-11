@@ -17,7 +17,7 @@ BATCH_SIZE = 1
 EPOCHS = 512
 LEARNING_RATE = 5e-5
 PATIENCE = 30  # 早停耐心值
-MODEL_SAVE_PATH = "/model/best_crack_model.ckpt"
+MODEL_SAVE_PATH = "/model/best_model.ckpt"
 LOG_DIR = "./tensorboard_logs"  # TensorBoard日志保存路径
 
 # 数据集路径

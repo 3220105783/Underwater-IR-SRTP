@@ -11,7 +11,7 @@ os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 config = tf.ConfigProto()
 config.gpu_options.allow_growth = True
 
-MODEL_PATH = "/model/best_crack_model.ckpt"
+MODEL_PATH = "/model/best_model.ckpt"
 TEST_IMG_DIR = "/dataset/val/img"
 TEST_MASK_DIR = "/dataset/val/mask"
 SAVE_RESULT_DIR = "../predict_results_tf1"
