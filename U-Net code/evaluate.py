@@ -120,7 +120,8 @@ def evaluate():
     masks = tf.placeholder(tf.float32, [None, 768, 768, 1], name='masks')
 
     unet = UNet(n_channels=3, n_classes=1)
-    logits = unet.build_model(inputs)
+    # 关键修改：评估时is_training=False（推理模式）
+    logits = unet.build_model(inputs, is_training=False)
     # 生成二值化预测掩码（用于ASD/HD95计算）
     pred_masks = tf.cast(tf.sigmoid(logits) > 0.5, tf.float32)
 

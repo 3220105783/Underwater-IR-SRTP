@@ -11,15 +11,16 @@ class UNet:
         self.n_classes = n_classes
         self.input_size = input_size
 
-    def double_conv(self, x, out_channels, name="double_conv"):
-        """(Conv → BN → ReLU) × 2（TF1.x版）"""
+    def double_conv(self, x, out_channels, is_training, name="double_conv"):
+        """(Conv → BN → ReLU) × 2（TF1.x版，增加is_training控制BN模式）"""
         with tf.variable_scope(name):
             # 第一层卷积
             x = tf.layers.conv2d(
                 x, out_channels, kernel_size=3, padding='same',
                 use_bias=False, name='conv1'
             )
-            x = tf.layers.batch_normalization(x, name='bn1')
+            # BN层：训练时更新均值/方差，推理时使用滑动平均
+            x = tf.layers.batch_normalization(x, training=is_training, name='bn1')
             x = tf.nn.relu(x, name='relu1')
 
             # 第二层卷积
@@ -27,19 +28,19 @@ class UNet:
                 x, out_channels, kernel_size=3, padding='same',
                 use_bias=False, name='conv2'
             )
-            x = tf.layers.batch_normalization(x, name='bn2')
+            x = tf.layers.batch_normalization(x, training=is_training, name='bn2')
             x = tf.nn.relu(x, name='relu2')
         return x
 
-    def down_sample(self, x, out_channels, name="down"):
-        """下采样：MaxPool → DoubleConv"""
+    def down_sample(self, x, out_channels, is_training, name="down"):
+        """下采样：MaxPool → DoubleConv（增加is_training）"""
         with tf.variable_scope(name):
             x = tf.layers.max_pooling2d(x, pool_size=2, strides=2, name='maxpool')
-            x = self.double_conv(x, out_channels, name='double_conv')
+            x = self.double_conv(x, out_channels, is_training, name='double_conv')
         return x
 
-    def up_sample(self, x1, x2, out_channels, name="up"):
-        """上采样：转置卷积 → 拼接 → DoubleConv"""
+    def up_sample(self, x1, x2, out_channels, is_training, name="up"):
+        """上采样：转置卷积 → 拼接 → DoubleConv（增加is_training）"""
         with tf.variable_scope(name):
             # 转置卷积上采样（匹配PyTorch ConvTranspose2d）
             x1 = tf.layers.conv2d_transpose(
@@ -56,25 +57,25 @@ class UNet:
 
             # 拼接通道维度（x2在前，x1在后）
             x = tf.concat([x2, x1], axis=-1, name='concat')
-            x = self.double_conv(x, out_channels, name='double_conv')
+            x = self.double_conv(x, out_channels, is_training, name='double_conv')
         return x
 
-    def build_model(self, inputs):
-        """构建完整U-Net模型（返回logits）"""
+    def build_model(self, inputs, is_training):
+        """构建完整U-Net模型（返回logits，增加is_training参数）"""
         # 输入层
-        x1 = self.double_conv(inputs, 64, name='inc')
+        x1 = self.double_conv(inputs, 64, is_training, name='inc')
 
         # 下采样
-        x2 = self.down_sample(x1, 128, name='down1')
-        x3 = self.down_sample(x2, 256, name='down2')
-        x4 = self.down_sample(x3, 512, name='down3')
-        x5 = self.down_sample(x4, 1024, name='down4')
+        x2 = self.down_sample(x1, 128, is_training, name='down1')
+        x3 = self.down_sample(x2, 256, is_training, name='down2')
+        x4 = self.down_sample(x3, 512, is_training, name='down3')
+        x5 = self.down_sample(x4, 1024, is_training, name='down4')
 
         # 上采样
-        x = self.up_sample(x5, x4, 512, name='up1')
-        x = self.up_sample(x, x3, 256, name='up2')
-        x = self.up_sample(x, x2, 128, name='up3')
-        x = self.up_sample(x, x1, 64, name='up4')
+        x = self.up_sample(x5, x4, 512, is_training, name='up1')
+        x = self.up_sample(x, x3, 256, is_training, name='up2')
+        x = self.up_sample(x, x2, 128, is_training, name='up3')
+        x = self.up_sample(x, x1, 64, is_training, name='up4')
 
         # 输出层（1x1卷积，无激活）
         logits = tf.layers.conv2d(

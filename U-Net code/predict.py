@@ -52,7 +52,8 @@ def predict():
     # 构建模型
     inputs = tf.placeholder(tf.float32, [1, 768, 768, 3], name='inputs')
     unet = UNet(n_channels=3, n_classes=1)
-    logits = unet.build_model(inputs)
+    # 关键修改：评估时is_training=False（推理模式）
+    logits = unet.build_model(inputs, is_training=False)
     pred_mask = tf.nn.sigmoid(logits) > 0.5
     pred_mask = tf.cast(pred_mask, tf.float32)
 

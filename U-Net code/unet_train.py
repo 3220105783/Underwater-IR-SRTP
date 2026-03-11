@@ -88,7 +88,8 @@ def build_train_graph():
     inputs = tf.placeholder(tf.float32, [None, 768, 768, 3], name='inputs')
     masks = tf.placeholder(tf.float32, [None, 768, 768, 1], name='masks')
     unet = UNet(n_channels=3, n_classes=1)
-    logits = unet.build_model(inputs)
+    # 关键修改：训练时is_training=True
+    logits = unet.build_model(inputs, is_training=True)
 
     # 损失函数+优化器
     loss = focal_dice_loss(logits, masks)
