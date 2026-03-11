@@ -14,9 +14,9 @@ os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 config = tf.ConfigProto()
 config.gpu_options.allow_growth = True
 
-MODEL_PATH = "/model/best_model.ckpt"
-VAL_IMG_DIR = "/dataset/val/img"
-VAL_MASK_DIR = "/dataset/val/mask"
+MODEL_PATH = "/model/best_model.ckpt"  #（DEFAULT："/model/best_model.ckpt"）
+VAL_IMG_DIR = "/dataset/val/img"  #（DEFAULT："/dataset/val/img"）
+VAL_MASK_DIR = "/dataset/val/mask"  #（DEFAULT："/dataset/val/mask"）
 BATCH_SIZE = 2
 
 
