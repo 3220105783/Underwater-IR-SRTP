@@ -41,9 +41,9 @@ def dice_loss(pred_logits, target, smooth=1e-6):
     """TF1.x版Dice Loss（小目标优化）"""
     pred = tf.nn.sigmoid(pred_logits)
 
-    # 展平
+    # 展平（统一target类型转换）
     pred_flat = tf.reshape(pred, [-1])
-    target_flat = tf.reshape(target, [-1])
+    target_flat = tf.reshape(tf.cast(target, tf.float32), [-1])  # 新增类型转换
 
     # Dice系数
     intersection = tf.reduce_sum(pred_flat * target_flat)
