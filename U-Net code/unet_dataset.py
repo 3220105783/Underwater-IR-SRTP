@@ -36,27 +36,62 @@ AUG_CONFIG = {
 }
 
 
-def random_rotate(image, max_angle=15):
-    """随机旋转（TF1.x版）"""
-    # 生成随机角度（-max_angle ~ max_angle）
-    angle = tf.random_uniform([], -max_angle, max_angle)
-    # 旋转图片
-    image = tf.contrib.image.rotate(image, angle * np.pi / 180, interpolation='BILINEAR')
+def get_random_aug_params(is_train):
+    """生成共享的随机增强参数（确保img和mask同步）"""
+    if not is_train:
+        return {}
+
+    aug_params = {}
+    # 1. 水平翻转参数
+    if AUG_CONFIG['random_flip_left_right']:
+        aug_params['flip_left_right'] = tf.random_uniform([], 0, 1) > 0.5
+    # 2. 垂直翻转参数
+    if AUG_CONFIG['random_flip_up_down']:
+        aug_params['flip_up_down'] = tf.random_uniform([], 0, 1) > 0.5
+    # 3. 旋转角度参数
+    if AUG_CONFIG['random_rotation']:
+        aug_params['rotation_angle'] = tf.random_uniform([], -AUG_CONFIG['rotation_angle'],
+                                                         AUG_CONFIG['rotation_angle'])
+    # 4. 缩放因子参数
+    if AUG_CONFIG['random_zoom']:
+        aug_params['zoom_scale'] = tf.random_uniform([], AUG_CONFIG['zoom_lower'], AUG_CONFIG['zoom_upper'])
+    # 5. 亮度调整参数（仅img）
+    if AUG_CONFIG['random_brightness']:
+        aug_params['brightness_delta'] = tf.random_uniform([], -AUG_CONFIG['brightness_max_delta'],
+                                                           AUG_CONFIG['brightness_max_delta'])
+    # 6. 对比度调整参数（仅img）
+    if AUG_CONFIG['random_contrast']:
+        aug_params['contrast_factor'] = tf.random_uniform([], AUG_CONFIG['contrast_lower'],
+                                                          AUG_CONFIG['contrast_upper'])
+    # 7. 色调调整参数（仅img）
+    if AUG_CONFIG['random_hue']:
+        aug_params['hue_delta'] = tf.random_uniform([], -AUG_CONFIG['hue_max_delta'], AUG_CONFIG['hue_max_delta'])
+    # 8. 饱和度调整参数（仅img）
+    if AUG_CONFIG['random_saturation']:
+        aug_params['saturation_factor'] = tf.random_uniform([], AUG_CONFIG['saturation_lower'],
+                                                            AUG_CONFIG['saturation_upper'])
+
+    return aug_params
+
+
+def apply_rotation(image, angle, is_mask=False):
+    """应用旋转（共享角度参数）"""
+    interpolation = 'NEAREST' if is_mask else 'BILINEAR'
+    image = tf.contrib.image.rotate(image, angle * np.pi / 180, interpolation=interpolation)
     return image
 
 
-def random_zoom(image, target_size, lower=0.9, upper=1.1):
-    """随机缩放（TF1.x版）"""
-    # 生成随机缩放因子
-    scale = tf.random_uniform([], lower, upper)
+def apply_zoom(image, target_size, scale, is_mask=False):
+    """应用缩放（共享缩放因子参数）"""
     # 计算缩放后的尺寸
     h = tf.cast(target_size[0] * scale, tf.int32)
     w = tf.cast(target_size[1] * scale, tf.int32)
     # 缩放
-    image = tf.image.resize_images(image, [h, w], method=tf.image.ResizeMethod.BILINEAR)
+    resize_method = tf.image.ResizeMethod.NEAREST_NEIGHBOR if is_mask else tf.image.ResizeMethod.BILINEAR
+    image = tf.image.resize_images(image, [h, w], method=resize_method)
     # 裁剪或填充回原尺寸
     if scale > 1.0:
-        image = tf.image.random_crop(image, [target_size[0], target_size[1], 3])
+        image = tf.image.random_crop(image, [target_size[0], target_size[1], tf.shape(image)[-1]])
     else:
         pad_h = (target_size[0] - h) // 2
         pad_w = (target_size[1] - w) // 2
@@ -65,63 +100,49 @@ def random_zoom(image, target_size, lower=0.9, upper=1.1):
     return image
 
 
-def add_gaussian_noise(image, std=0.01):
-    """添加高斯噪声（TF1.x版）"""
-    noise = tf.random_normal(shape=tf.shape(image), mean=0.0, stddev=std, dtype=tf.float32)
-    image = image + noise
-    # 裁剪到有效范围
-    image = tf.clip_by_value(image, 0.0, 1.0)
-    return image
-
-
-def preprocess_img(img, is_train=True):
-    """图片预处理（增强版 TF1.x）"""
+def preprocess_img(img, aug_params, is_train=True):
+    """图片预处理（使用共享增强参数 TF1.x）"""
     # 转为float32并归一化到[0,1]
     img = tf.cast(img, tf.float32) / 255.0
 
-    # 训练集数据增强
+    # 训练集数据增强（使用共享参数）
     if is_train:
-        # 1. 随机水平翻转
-        if AUG_CONFIG['random_flip_left_right']:
-            img = tf.image.random_flip_left_right(img)
+        # 1. 水平翻转（共享参数）
+        if AUG_CONFIG['random_flip_left_right'] and aug_params.get('flip_left_right', False):
+            img = tf.image.flip_left_right(img)
 
-        # 2. 随机垂直翻转
-        if AUG_CONFIG['random_flip_up_down']:
-            img = tf.image.random_flip_up_down(img)
+        # 2. 垂直翻转（共享参数）
+        if AUG_CONFIG['random_flip_up_down'] and aug_params.get('flip_up_down', False):
+            img = tf.image.flip_up_down(img)
 
-        # 3. 随机亮度调整
+        # 3. 随机亮度调整（共享参数）
         if AUG_CONFIG['random_brightness']:
-            img = tf.image.random_brightness(img, max_delta=AUG_CONFIG['brightness_max_delta'])
+            img = tf.image.adjust_brightness(img, delta=aug_params['brightness_delta'])
 
-        # 4. 随机对比度调整
+        # 4. 随机对比度调整（共享参数）
         if AUG_CONFIG['random_contrast']:
-            img = tf.image.random_contrast(img,
-                                           lower=AUG_CONFIG['contrast_lower'],
-                                           upper=AUG_CONFIG['contrast_upper'])
+            img = tf.image.adjust_contrast(img, contrast_factor=aug_params['contrast_factor'])
 
-        # 5. 随机色调调整（仅对RGB图像有效）
+        # 5. 随机色调调整（仅RGB图像有效，共享参数）
         if AUG_CONFIG['random_hue']:
-            img = tf.image.random_hue(img, max_delta=AUG_CONFIG['hue_max_delta'])
+            img = tf.image.adjust_hue(img, delta=aug_params['hue_delta'])
 
-        # 6. 随机饱和度调整
+        # 6. 随机饱和度调整（共享参数）
         if AUG_CONFIG['random_saturation']:
-            img = tf.image.random_saturation(img,
-                                             lower=AUG_CONFIG['saturation_lower'],
-                                             upper=AUG_CONFIG['saturation_upper'])
+            img = tf.image.adjust_saturation(img, saturation_factor=aug_params['saturation_factor'])
 
-        # 7. 随机旋转
+        # 7. 随机旋转（共享角度参数）
         if AUG_CONFIG['random_rotation']:
-            img = random_rotate(img, max_angle=AUG_CONFIG['rotation_angle'])
+            img = apply_rotation(img, aug_params['rotation_angle'], is_mask=False)
 
-        # 8. 随机缩放
+        # 8. 随机缩放（共享缩放因子参数）
         if AUG_CONFIG['random_zoom']:
-            img = random_zoom(img, TARGET_SIZE,
-                              lower=AUG_CONFIG['zoom_lower'],
-                              upper=AUG_CONFIG['zoom_upper'])
+            img = apply_zoom(img, TARGET_SIZE, aug_params['zoom_scale'], is_mask=False)
 
         # 9. 添加高斯噪声
         if AUG_CONFIG['noise_aug']:
-            img = add_gaussian_noise(img, std=AUG_CONFIG['noise_std'])
+            noise = tf.random_normal(shape=tf.shape(img), mean=0.0, stddev=AUG_CONFIG['noise_std'], dtype=tf.float32)
+            img = img + noise
 
         # 裁剪到有效范围（防止增强后超出[0,1]）
         img = tf.clip_by_value(img, 0.0, 1.0)
@@ -135,39 +156,28 @@ def preprocess_img(img, is_train=True):
     return img
 
 
-def preprocess_mask(mask):
-    """Mask预处理（同步增强 TF1.x版）"""
+def preprocess_mask(mask, aug_params, is_train=True):
+    """Mask预处理（使用共享增强参数 TF1.x版）"""
     # 转为float32
     mask = tf.cast(mask, tf.float32)
 
-    # 训练集mask同步增强（与图片增强保持一致）
-    if is_train:  # 注意：这里需要从外部传入is_train参数，下面会修改load_image_mask_pair
-        # 1. 随机水平翻转
-        if AUG_CONFIG['random_flip_left_right']:
-            mask = tf.image.random_flip_left_right(mask)
+    # 训练集mask同步增强（与图片增强保持完全一致）
+    if is_train:
+        # 1. 水平翻转（共享参数）
+        if AUG_CONFIG['random_flip_left_right'] and aug_params.get('flip_left_right', False):
+            mask = tf.image.flip_left_right(mask)
 
-        # 2. 随机垂直翻转
-        if AUG_CONFIG['random_flip_up_down']:
-            mask = tf.image.random_flip_up_down(mask)
+        # 2. 垂直翻转（共享参数）
+        if AUG_CONFIG['random_flip_up_down'] and aug_params.get('flip_up_down', False):
+            mask = tf.image.flip_up_down(mask)
 
-        # 3. 随机旋转
+        # 3. 随机旋转（共享角度参数）
         if AUG_CONFIG['random_rotation']:
-            angle = tf.random_uniform([], -AUG_CONFIG['rotation_angle'], AUG_CONFIG['rotation_angle'])
-            mask = tf.contrib.image.rotate(mask, angle * np.pi / 180, interpolation='NEAREST')
+            mask = apply_rotation(mask, aug_params['rotation_angle'], is_mask=True)
 
-        # 4. 随机缩放
+        # 4. 随机缩放（共享缩放因子参数）
         if AUG_CONFIG['random_zoom']:
-            scale = tf.random_uniform([], AUG_CONFIG['zoom_lower'], AUG_CONFIG['zoom_upper'])
-            h = tf.cast(TARGET_SIZE[0] * scale, tf.int32)
-            w = tf.cast(TARGET_SIZE[1] * scale, tf.int32)
-            mask = tf.image.resize_images(mask, [h, w], method=tf.image.ResizeMethod.NEAREST_NEIGHBOR)
-            if scale > 1.0:
-                mask = tf.image.random_crop(mask, [TARGET_SIZE[0], TARGET_SIZE[1], 1])
-            else:
-                pad_h = (TARGET_SIZE[0] - h) // 2
-                pad_w = (TARGET_SIZE[1] - w) // 2
-                mask = tf.pad(mask, [[pad_h, TARGET_SIZE[0] - h - pad_h],
-                                     [pad_w, TARGET_SIZE[1] - w - pad_w], [0, 0]])
+            mask = apply_zoom(mask, TARGET_SIZE, aug_params['zoom_scale'], is_mask=True)
 
     # 调整尺寸（最终resize到目标尺寸）
     mask = tf.image.resize_images(mask, TARGET_SIZE, method=tf.image.ResizeMethod.NEAREST_NEIGHBOR)
@@ -186,13 +196,18 @@ def load_image_mask_pair(img_path, mask_path, is_train=True):
     img_raw = tf.read_file(img_path)
     img = tf.image.decode_image(img_raw, channels=3)
     img.set_shape([None, None, 3])
-    img = preprocess_img(img, is_train)
 
     # 读取mask
     mask_raw = tf.read_file(mask_path)
     mask = tf.image.decode_image(mask_raw, channels=1)
     mask.set_shape([None, None, 1])
-    mask = preprocess_mask(mask, is_train)  # 传入is_train参数
+
+    # 生成共享的增强参数（核心：确保img和mask用同一组随机参数）
+    aug_params = get_random_aug_params(is_train)
+
+    # 预处理（传入共享参数）
+    img = preprocess_img(img, aug_params, is_train)
+    mask = preprocess_mask(mask, aug_params, is_train)
 
     return img, mask
 
