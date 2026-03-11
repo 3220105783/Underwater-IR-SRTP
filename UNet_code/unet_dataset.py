@@ -64,6 +64,8 @@ def apply_rotation(image, angle, is_mask=False):
     interpolation = 'NEAREST' if is_mask else 'BILINEAR'
     image = tf.contrib.image.rotate(image, angle * np.pi / 180, interpolation=interpolation)
     image = tf.image.resize_with_crop_or_pad(image, TARGET_H, TARGET_W)
+    # 显式设置shape
+    image.set_shape([TARGET_H, TARGET_W, tf.shape(image)[-1]])
     return image
 
 
@@ -90,6 +92,8 @@ def apply_zoom(image, scale, crop_offset_h, crop_offset_w, is_mask=False):
 
 def preprocess_img(img, aug_params, is_train=True):
     """图片预处理"""
+    # 确保img有基础shape（高宽暂时为None，通道固定为3）
+    img.set_shape([None, None, 3])
     img = tf.cast(img, tf.float32) / 255.0
     selected_method = aug_params.get('selected_method')
 
@@ -118,7 +122,7 @@ def preprocess_img(img, aug_params, is_train=True):
 
         img = tf.clip_by_value(img, 0.0, 1.0)
 
-    # 最终预处理
+    # 最终预处理（显式指定resize方法，确保shape）
     img = tf.image.resize_images(img, [TARGET_H, TARGET_W], method=tf.image.ResizeMethod.BILINEAR)
     img = (img - MEAN) / STD
     img.set_shape([TARGET_H, TARGET_W, 3])
@@ -127,6 +131,8 @@ def preprocess_img(img, aug_params, is_train=True):
 
 def preprocess_mask(mask, aug_params, is_train=True):
     """Mask预处理（补全逻辑）"""
+    # 确保mask有基础shape（高宽暂时为None，通道固定为1）
+    mask.set_shape([None, None, 1])
     # 基础预处理：归一化到[0,1]
     mask = tf.cast(mask, tf.float32) / 255.0
     selected_method = aug_params.get('selected_method')
@@ -150,6 +156,36 @@ def preprocess_mask(mask, aug_params, is_train=True):
     return mask
 
 
+def load_img(img_path, mask_path, target_size=(768, 768), is_train=True):
+    """修复扩展名提取逻辑 + 兼容TF1.x + 维度强制保证"""
+    # ========== 核心修复：提取文件扩展名 ==========
+    split_result = tf.string_split([img_path], '.')  # 返回SparseTensor
+    img_ext = tf.sparse.to_dense(split_result)[0][-1]  # 转为密集张量后取最后一个元素
+
+    # 读取图片并保证维度
+    img = tf.read_file(img_path)
+    if img_ext == b'jpg' or img_ext == b'jpeg':
+        img = tf.image.decode_jpeg(img, channels=3)
+    elif img_ext == b'png':
+        img = tf.image.decode_png(img, channels=3)
+    # 强制保证img是3维 (H, W, 3)，避免维度异常
+    img = tf.ensure_shape(img, [None, None, 3])
+    # 调整尺寸
+    img = tf.image.resize_images(img, target_size, method=tf.image.ResizeMethod.BILINEAR)
+
+    # 读取mask并保证维度
+    mask = tf.read_file(mask_path)
+    mask = tf.image.decode_png(mask, channels=1)
+    # 强制保证mask是3维 (H, W, 1)
+    mask = tf.ensure_shape(mask, [None, None, 1])
+    # 调整尺寸（最近邻插值）
+    mask = tf.image.resize_images(mask, target_size, method=tf.image.ResizeMethod.NEAREST_NEIGHBOR)
+    mask = tf.cast(mask, tf.float32) / 255.0
+    mask = tf.where(mask > 0.5, 1.0, 0.0)  # 二值化
+
+    return img, mask
+
+
 def build_dataset(img_dir, mask_dir, batch_size, is_train=True):
     """构建TF1.x数据集迭代器（完整逻辑）"""
     # 获取文件列表
@@ -165,15 +201,10 @@ def build_dataset(img_dir, mask_dir, batch_size, is_train=True):
         dataset = dataset.shuffle(buffer_size=len(img_paths))
         dataset = dataset.repeat()
 
-    # 读取图片
-    def load_img(img_path, mask_path):
-        img = tf.read_file(img_path)
-        img = tf.image.decode_image(img, channels=3)
-        mask = tf.read_file(mask_path)
-        mask = tf.image.decode_image(mask, channels=1)
-        return img, mask
-
-    dataset = dataset.map(load_img, num_parallel_calls=tf.data.experimental.AUTOTUNE)
+    # 修复：通过lambda传递target_size和is_train参数给load_img
+    dataset = dataset.map(lambda img_path, mask_path: load_img(
+        img_path, mask_path, target_size=TARGET_SIZE, is_train=is_train
+    ), num_parallel_calls=tf.data.experimental.AUTOTUNE)
 
     # 生成增强参数
     dataset = dataset.map(lambda img, mask: (img, mask, get_random_aug_params(is_train)),
