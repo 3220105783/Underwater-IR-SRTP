@@ -1,76 +1,54 @@
 # -*- coding: utf-8 -*-
 import os
-import shutil
 import numpy as np
 import tensorflow as tf
 import matplotlib.pyplot as plt
 from unet_dataset import build_dataset
 from unet_model import UNet
-from unet_utils import focal_dice_loss, calculate_iou, calculate_metrics, calculate_dsc
+from unet_utils import (focal_dice_loss, calculate_iou_per_sample,
+                        calculate_metrics_per_sample,
+                        calculate_dsc_per_sample)
+from config import (CUDA_VISIBLE_DEVICES, BATCH_SIZE, EPOCHS, LEARNING_RATE, PATIENCE,
+                    MODEL_SAVE_PATH, LATEST_MODEL_DIR, MAX_LATEST_MODELS, LOG_DIR,
+                    LOAD_EXIST_MODEL, EXIST_MODEL_PATH, TRAIN_IMG_DIR, TRAIN_MASK_DIR,
+                    VAL_IMG_DIR, VAL_MASK_DIR, TRAIN_RESULT_DIR, FOCAL_WEIGHT, DICE_WEIGHT)
 
 # -------------------------- 配置参数 --------------------------
-os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+os.environ["CUDA_VISIBLE_DEVICES"] = CUDA_VISIBLE_DEVICES
 config = tf.ConfigProto()
 config.gpu_options.allow_growth = True
-
-# 训练核心参数
-BATCH_SIZE = 1
-EPOCHS = 512
-LEARNING_RATE = 5e-5
-PATIENCE = 30  # 早停耐心值
-MODEL_SAVE_PATH = "/model/best_model.ckpt"  # 最优模型覆盖保存路径（DEFAULT: "/model/best_model.ckpt"）
-LATEST_MODEL_DIR = "/model/latest"  # 最新3个模型保存目录（DEFAULT: "/model/latest"）
-MAX_LATEST_MODELS = 3  # 保留最新的3个模型
-LOG_DIR = "/tensorboard_logs"  # TensorBoard日志保存路径（DEFAULT: "/tensorboard_logs"）
-
-# ====================== 基于已有模型训练配置（核心修改）======================
-LOAD_EXIST_MODEL = False  # 开关：True=使用已有模型继续训练 | False=从头开始训练
-EXIST_MODEL_DIR = "/model/exist"  # 已有模型存放目录：将之前的任意模型放入此目录即可（DEFAULT: "/model/exist"）
-EXIST_MODEL_NAME = "exist.ckpt"  # 已有模型的文件名（保持和训练保存的一致即可，DEFAULT: "exist.ckpt"）
-EXIST_MODEL_PATH = os.path.join(EXIST_MODEL_DIR, EXIST_MODEL_NAME)
-# ============================================================================
-
-# 数据集路径
-TRAIN_IMG_DIR = "/dataset/train/img"  #（DEFAULT: "/dataset/train/img"）
-TRAIN_MASK_DIR = "/dataset/train/mask"  #（DEFAULT: "/dataset/train/mask"）
-VAL_IMG_DIR = "/dataset/val/img"  #（DEFAULT: "/dataset/val/img"）
-VAL_MASK_DIR = "/dataset/val/mask"  #（DEFAULT: "/dataset/val/mask"）
-
-
-#训练结果保存路径
-TRAIN_RESULT_DIR = "/results/train"  # 训练相关结果（DEFAULT: "/results/train"）
-EVAL_RESULT_DIR = "/results/evaluation"    # 评估相关结果（DEFAULT: "/results/evaluation"）
-PRED_RESULT_DIR = "/results/predict" # 预测相关结果（DEFAULT: "/results/predict"）
 
 
 # -------------------------- 保存最新模型 --------------------------
 def save_latest_model(sess, saver, epoch, val_iou):
-    """保存最新模型，并只保留最近的3个"""
+    """保存最新模型，修复冗余目录判断"""
     model_name = f"model_epoch_{epoch}_iou_{val_iou:.4f}"
     save_path = os.path.join(LATEST_MODEL_DIR, model_name)
     saver.save(sess, save_path)
     print(f"Saved latest model to: {save_path}")
 
-    # 筛选并排序模型文件（按修改时间，最旧在前）
+    # 筛选模型文件（仅保留.ckpt相关文件）
     model_files = []
     for item in os.listdir(LATEST_MODEL_DIR):
         item_path = os.path.join(LATEST_MODEL_DIR, item)
-        if os.path.isdir(item_path) or item.endswith('.ckpt'):
-            base_name = item[:-5] if item.endswith('.ckpt') else item
+        if item.endswith('.ckpt') or item.endswith('.index') or item.endswith('.data-00000-of-00001') or item.endswith(
+                '.meta'):
+            # 提取基础名称
+            base_name = item.split('.ckpt')[0]
             mtime = os.path.getmtime(item_path)
             model_files.append((base_name, mtime))
-    model_files.sort(key=lambda x: x[1])
+
+    # 去重 + 排序
+    unique_models = list({name: mtime for name, mtime in model_files}.items())
+    unique_models.sort(key=lambda x: x[1])
 
     # 超出数量则删除最旧模型
-    while len(model_files) > MAX_LATEST_MODELS:
-        oldest_model = model_files.pop(0)[0]
-        for ext in ['.ckpt.data-00000-of-00001', '.ckpt.index', '.ckpt.meta', 'checkpoint']:
+    while len(unique_models) > MAX_LATEST_MODELS:
+        oldest_model = unique_models.pop(0)[0]
+        for ext in ['.ckpt.data-00000-of-00001', '.ckpt.index', '.ckpt.meta']:
             file_path = os.path.join(LATEST_MODEL_DIR, f"{oldest_model}{ext}")
             if os.path.exists(file_path):
                 os.remove(file_path)
-        dir_path = os.path.join(LATEST_MODEL_DIR, oldest_model)
-        if os.path.exists(dir_path):
-            shutil.rmtree(dir_path)
         print(f"Removed oldest model: {oldest_model}")
 
 
@@ -84,29 +62,30 @@ def build_train_graph():
         VAL_IMG_DIR, VAL_MASK_DIR, BATCH_SIZE, is_train=False
     )
 
-    # 构建模型：分别为训练/验证构建不同模式的模型
+    # 构建模型
     inputs = tf.placeholder(tf.float32, [None, 768, 768, 3], name='inputs')
     masks = tf.placeholder(tf.float32, [None, 768, 768, 1], name='masks')
-    unet = UNet(n_channels=3, n_classes=1)
-    # 训练模式
+    unet = UNet()
     logits_train = unet.build_model(inputs, is_training=True)
-    # 验证模式（新增）
     logits_val = unet.build_model(inputs, is_training=False)
 
-    # 损失函数：区分训练/验证损失（新增）
-    loss_train = focal_dice_loss(logits_train, masks)
-    loss_val = focal_dice_loss(logits_val, masks)
+    # 损失函数
+    loss_train = focal_dice_loss(logits_train, masks, focal_weight=FOCAL_WEIGHT, dice_weight=DICE_WEIGHT)
+    loss_val = focal_dice_loss(logits_val, masks, focal_weight=FOCAL_WEIGHT, dice_weight=DICE_WEIGHT)
 
-    # 优化器仅基于训练损失
+    # 优化器
     optimizer = tf.train.AdamOptimizer(learning_rate=LEARNING_RATE)
     train_op = optimizer.minimize(loss_train)
 
-    # 评估指标：基于验证模式的logits（修改）
-    iou = calculate_iou(logits_val, masks)
-    metrics = calculate_metrics(logits_val, masks)
-    dsc = calculate_dsc(logits_val, masks)
+    # 评估指标（支持样本级）
+    iou_per_sample = calculate_iou_per_sample(logits_val, masks)
+    iou = tf.reduce_mean(iou_per_sample)
+    metrics_per_sample = calculate_metrics_per_sample(logits_val, masks)
+    metrics = {k: tf.reduce_mean(v) for k, v in metrics_per_sample.items()}
+    dsc_per_sample = calculate_dsc_per_sample(logits_val, masks)
+    dsc = tf.reduce_mean(dsc_per_sample)
 
-    # TensorBoard摘要：修正验证损失为真实验证损失（修改）
+    # TensorBoard摘要
     tf.summary.scalar('train/loss', loss_train)
     tf.summary.scalar('val/iou', iou)
     tf.summary.scalar('val/accuracy', metrics['accuracy'])
@@ -114,18 +93,20 @@ def build_train_graph():
     tf.summary.scalar('val/recall', metrics['recall'])
     tf.summary.scalar('val/f1', metrics['f1'])
     tf.summary.scalar('val/dsc', dsc)
-    tf.summary.scalar('val/loss', loss_val)  # 修正为验证损失
+    tf.summary.scalar('val/loss', loss_val)
     merged_summary = tf.summary.merge_all()
 
-    # 模型保存（不限制数量，手动管理）
+    # 模型保存
     saver = tf.train.Saver(max_to_keep=None)
 
     return {
         'train_iter': train_iter, 'train_batch': train_batch, 'train_size': train_size,
         'val_iter': val_iter, 'val_batch': val_batch, 'val_size': val_size,
         'inputs': inputs, 'masks': masks,
-        'train_op': train_op, 'loss_train': loss_train, 'loss_val': loss_val,  # 修改：区分训练/验证损失
-        'iou': iou, 'metrics': metrics, 'dsc': dsc,
+        'train_op': train_op, 'loss_train': loss_train, 'loss_val': loss_val,
+        'iou': iou, 'iou_per_sample': iou_per_sample,
+        'metrics': metrics, 'metrics_per_sample': metrics_per_sample,
+        'dsc': dsc, 'dsc_per_sample': dsc_per_sample,
         'merged_summary': merged_summary, 'saver': saver
     }
 
@@ -133,63 +114,52 @@ def build_train_graph():
 # -------------------------- 训练主流程 --------------------------
 def train():
     graph = build_train_graph()
-    # 训练记录容器
     train_losses = []
     val_losses = []
     val_ious = []
     best_iou = 0.0
-    best_val_loss = float('inf')  # 新增：记录最佳验证损失
+    best_val_loss = float('inf')
     patience_counter = 0
 
-    # 启动Session
     with tf.Session(config=config) as sess:
         summary_writer = tf.summary.FileWriter(LOG_DIR, sess.graph)
 
-        # ====================== 已有模型加载逻辑 =======================
+        # 加载已有模型
         if LOAD_EXIST_MODEL:
-            # 检查模型文件是否存在，避免加载失败
-            required_exts = ['.ckpt.data-00000-of-00001', '.ckpt.index', '.ckpt.meta']
+            required_exts = ['.data-00000-of-00001', '.index', '.meta']
             model_files_exist = all([os.path.exists(EXIST_MODEL_PATH + ext) for ext in required_exts])
             if model_files_exist:
                 try:
                     graph['saver'].restore(sess, EXIST_MODEL_PATH)
-                    print(f"Successfully loaded existing model: {EXIST_MODEL_PATH}")
-                    # 简单验证模型可用性
+                    print(f"Loaded existing model: {EXIST_MODEL_PATH}")
+                    # 验证模型
                     test_iou = sess.run(graph['iou'], feed_dict={
                         graph['inputs']: np.zeros((1, 768, 768, 3)),
                         graph['masks']: np.zeros((1, 768, 768, 1))
                     })
-                    print(f"The existing model has been validated, basic IoU value: {test_iou:.4f}")
+                    print(f"Model validated, test IoU: {test_iou:.4f}")
                 except Exception as e:
-                    print(f"Failed to load existing model, error message: {str(e)[:100]}")
-                    print("Train starting from initializing model parameters from scratch")
+                    print(f"Load model failed: {str(e)[:100]}")
                     sess.run(tf.global_variables_initializer())
             else:
-                print(f"The existing model files are missing (must include {required_exts}), path: {EXIST_MODEL_PATH}")
-                print("Train starting from initializing model parameters from scratch")
+                print(f"Model files missing: {EXIST_MODEL_PATH}")
                 sess.run(tf.global_variables_initializer())
         else:
-            # 不加载已有模型，从头训练
             sess.run(tf.global_variables_initializer())
-            print("Did not load an existing model; training begins from scratch with model parameters initialized.")
-        # =================================================================
+            print("Training from scratch")
 
-        # 核心修改：仅在训练开始时初始化一次训练迭代器（移出epoch循环）
-        sess.run(graph['train_iter'].initializer)
-
-        # 训练循环（原有逻辑完全不变）
         steps_per_epoch = graph['train_size'] // BATCH_SIZE
         global_step = 0
         for epoch in range(EPOCHS):
             print(f"\nEpoch {epoch + 1}/{EPOCHS}")
             print("-" * 40)
 
-            # 训练批次
+            # 训练批次（修复迭代器初始化：每个epoch重新初始化）
+            sess.run(graph['train_iter'].initializer)
             train_loss = 0.0
             for step in range(steps_per_epoch):
                 global_step += 1
                 img_batch, mask_batch = sess.run(graph['train_batch'])
-                # 修改：使用训练损失
                 _, loss_val, summary = sess.run(
                     [graph['train_op'], graph['loss_train'], graph['merged_summary']],
                     feed_dict={graph['inputs']: img_batch, graph['masks']: mask_batch}
@@ -201,38 +171,42 @@ def train():
             avg_train_loss = train_loss / steps_per_epoch
             train_losses.append(avg_train_loss)
 
-            # 验证批次（验证迭代器仍每个epoch初始化，保证验证集完整遍历）
+            # 验证批次
             sess.run(graph['val_iter'].initializer)
-            val_loss, val_iou, val_precision, val_recall, val_f1, val_dsc, val_acc = 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0
+            val_loss, val_iou = 0.0, 0.0
+            val_precision, val_recall, val_f1, val_dsc, val_acc = 0.0, 0.0, 0.0, 0.0, 0.0
             val_steps = 0
             while True:
                 try:
                     img_batch, mask_batch = sess.run(graph['val_batch'])
-                    # 修改：使用验证损失
-                    loss_val, iou_val, metrics_val, dsc_val, summary = sess.run(
-                        [graph['loss_val'], graph['iou'], graph['metrics'], graph['dsc'], graph['merged_summary']],
+                    # 运行样本级指标
+                    loss_val_i, iou_per_sample_val, metrics_per_sample_val, dsc_per_sample_val, summary = sess.run(
+                        [graph['loss_val'], graph['iou_per_sample'], graph['metrics_per_sample'],
+                         graph['dsc_per_sample'], graph['merged_summary']],
                         feed_dict={graph['inputs']: img_batch, graph['masks']: mask_batch}
                     )
                     summary_writer.add_summary(summary, global_step)
-                    val_loss += loss_val
-                    val_iou += iou_val
-                    val_precision += metrics_val['precision']
-                    val_recall += metrics_val['recall']
-                    val_f1 += metrics_val['f1']
-                    val_dsc += dsc_val
-                    val_acc += metrics_val['accuracy']
+
+                    # 累加样本级指标均值
+                    val_loss += loss_val_i
+                    val_iou += np.mean(iou_per_sample_val)
+                    val_precision += np.mean(metrics_per_sample_val['precision'])
+                    val_recall += np.mean(metrics_per_sample_val['recall'])
+                    val_f1 += np.mean(metrics_per_sample_val['f1'])
+                    val_dsc += np.mean(dsc_per_sample_val)
+                    val_acc += np.mean(metrics_per_sample_val['accuracy'])
                     val_steps += 1
                 except tf.errors.OutOfRangeError:
                     break
 
             # 计算验证平均指标
-            avg_val_loss = val_loss / val_steps
-            avg_val_iou = val_iou / val_steps
-            avg_val_precision = val_precision / val_steps
-            avg_val_recall = val_recall / val_steps
-            avg_val_f1 = val_f1 / val_steps
-            avg_val_dsc = val_dsc / val_steps
-            avg_val_acc = val_acc / val_steps
+            avg_val_loss = val_loss / val_steps if val_steps > 0 else 0.0
+            avg_val_iou = val_iou / val_steps if val_steps > 0 else 0.0
+            avg_val_precision = val_precision / val_steps if val_steps > 0 else 0.0
+            avg_val_recall = val_recall / val_steps if val_steps > 0 else 0.0
+            avg_val_f1 = val_f1 / val_steps if val_steps > 0 else 0.0
+            avg_val_dsc = val_dsc / val_steps if val_steps > 0 else 0.0
+            avg_val_acc = val_acc / val_steps if val_steps > 0 else 0.0
             val_losses.append(avg_val_loss)
             val_ious.append(avg_val_iou)
 
@@ -243,36 +217,34 @@ def train():
                 f"Val Precision: {avg_val_precision:.4f} | Val Recall: {avg_val_recall:.4f} | Val F1: {avg_val_f1:.4f}")
             print(f"Val Accuracy: {avg_val_acc:.4f}")
 
-            # 保存最优模型+最新模型（修改早停逻辑）
+            # 保存最优模型（修复早停逻辑）
             improved = False
-            # 条件1：IoU提升 或 条件2：损失下降（且IoU未显著下降，这里设置IoU下降不超过0.01）
-            if (avg_val_iou > best_iou) or (avg_val_loss < best_val_loss and (best_iou - avg_val_iou) < 0.01):
-                # 更新最优指标
+            # 条件：IoU提升 或 损失下降且IoU未显著下降（仅当best_iou>0时判断）
+            if (avg_val_iou > best_iou) or (
+                    avg_val_loss < best_val_loss and (best_iou == 0 or (best_iou - avg_val_iou) < 0.01)):
                 if avg_val_iou > best_iou:
                     best_iou = avg_val_iou
                 if avg_val_loss < best_val_loss:
                     best_val_loss = avg_val_loss
-                # 保存模型
                 graph['saver'].save(sess, MODEL_SAVE_PATH)
-                print(f"Saving best model (IoU: {best_iou:.4f}, Val Loss: {best_val_loss:.4f}) to {MODEL_SAVE_PATH}")
+                print(f"Saved best model (IoU: {best_iou:.4f}, Loss: {best_val_loss:.4f}) to {MODEL_SAVE_PATH}")
                 save_latest_model(sess, graph['saver'], epoch + 1, avg_val_iou)
                 patience_counter = 0
                 improved = True
-            # 新增：每5个epoch强制保存一次最新模型（避免长期无IoU提升但损失下降时丢失模型）
+            # 每5epoch强制保存
             if (epoch + 1) % 5 == 0 and not improved:
                 save_latest_model(sess, graph['saver'], epoch + 1, avg_val_iou)
-                print(f"Forced save latest model at epoch {epoch + 1} (no significant improvement but regular save)")
+                print(f"Forced save latest model at epoch {epoch + 1}")
 
-            # 修改早停逻辑：仅当IoU和损失均无改善时，计数器增加
+            # 早停逻辑（修复初始阶段误判）
             if not improved:
                 patience_counter += 1
                 print(f"Early stopping counter: {patience_counter}/{PATIENCE}")
                 if patience_counter >= PATIENCE:
-                    print(
-                        "Neither IoU nor validation loss improved for multiple consecutive epochs, stopping training early")
+                    print("Early stopping triggered (no improvement)")
                     break
             else:
-                patience_counter = 0  # 任意指标改善则重置计数器
+                patience_counter = 0
 
         # 训练完成
         summary_writer.close()
@@ -298,10 +270,12 @@ def train():
         ax2.set_ylim(0, 1)
         ax2.legend()
         ax2.grid(alpha=0.3)
-        # 隐藏多余子图（保持原有布局，不改动）
+        # 隐藏多余子图
         ax3.axis('off')
         ax4.axis('off')
         plt.tight_layout()
+        # 确保目录存在
+        os.makedirs(TRAIN_RESULT_DIR, exist_ok=True)
         train_history_path = os.path.join(TRAIN_RESULT_DIR, "training_history.png")
         plt.savefig(train_history_path, dpi=150, bbox_inches='tight')
         plt.show()

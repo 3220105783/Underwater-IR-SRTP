@@ -1,27 +1,8 @@
 # -*- coding: utf-8 -*-
 import tensorflow as tf
 
-def calculate_iou(pred_logits, target, threshold=0.5, smooth=1e-6):
-    """TF1.x版IoU计算（匹配原逻辑）"""
-    # Sigmoid+二值化
-    pred = tf.nn.sigmoid(pred_logits) > threshold
-    pred = tf.cast(pred, tf.float32)
-    target = tf.cast(target, tf.float32)
 
-    # 展平
-    pred_flat = tf.reshape(pred, [-1])
-    target_flat = tf.reshape(target, [-1])
-
-    # 计算交并集
-    intersection = tf.reduce_sum(pred_flat * target_flat)
-    union = tf.reduce_sum(pred_flat) + tf.reduce_sum(target_flat) - intersection
-
-    # IoU（平滑项避免除零）
-    iou = (intersection + smooth) / (union + smooth)
-    return iou
-
-
-def focal_loss(pred_logits, target, gamma=2, alpha=50.0, smooth=1e-6):
+def focal_loss(pred_logits, target, gamma=2, alpha=50.0):
     """TF1.x版Focal Loss（解决样本不平衡）"""
     # BCE损失（logits输入）
     bce = tf.nn.sigmoid_cross_entropy_with_logits(labels=target, logits=pred_logits)
@@ -60,42 +41,53 @@ def focal_dice_loss(pred_logits, target, focal_weight=0.4, dice_weight=0.6):
     return focal_weight * focal + dice_weight * dice
 
 
-def calculate_metrics(pred_logits, target):
-    """计算Precision/Recall/F1/Accuracy（TF1.x版）"""
-    pred = tf.nn.sigmoid(pred_logits) > 0.5
+# 样本级IoU计算（返回每个样本的IoU）
+def calculate_iou_per_sample(pred_logits, target, threshold=0.5, smooth=1e-6):
+    pred = tf.nn.sigmoid(pred_logits) > threshold
     pred = tf.cast(pred, tf.float32)
     target = tf.cast(target, tf.float32)
 
-    # 展平
-    pred_flat = tf.reshape(pred, [-1])
-    target_flat = tf.reshape(target, [-1])
+    # 保留batch维度计算（shape: [batch,]）
+    intersection = tf.reduce_sum(tf.reshape(pred * target, [tf.shape(pred)[0], -1]), axis=1)
+    union = tf.reduce_sum(tf.reshape(pred, [tf.shape(pred)[0], -1]), axis=1) + \
+            tf.reduce_sum(tf.reshape(target, [tf.shape(target)[0], -1]), axis=1) - intersection
+    iou = (intersection + smooth) / (union + smooth)
+    return iou
 
-    # 混淆矩阵
-    TP = tf.reduce_sum((pred_flat == 1) & (target_flat == 1))
-    TN = tf.reduce_sum((pred_flat == 0) & (target_flat == 0))
-    FP = tf.reduce_sum((pred_flat == 1) & (target_flat == 0))
-    FN = tf.reduce_sum((pred_flat == 0) & (target_flat == 1))
+# 样本级Metrics计算（返回每个样本的指标字典）
+def calculate_metrics_per_sample(pred_logits, target, threshold=0.5, smooth=1e-6):
+    pred = tf.nn.sigmoid(pred_logits) > threshold
+    pred = tf.cast(pred, tf.float32)
+    target = tf.cast(target, tf.float32)
 
-    # 指标计算（添加平滑项避免除零）
-    accuracy = (TP + TN) / (TP + TN + FP + FN + 1e-6)
-    precision = TP / (TP + FP + 1e-6)
-    recall = TP / (TP + FN + 1e-6)
-    f1 = 2 * precision * recall / (precision + recall + 1e-6)
+    # 展平（保留batch维度）
+    pred_flat = tf.reshape(pred, [tf.shape(pred)[0], -1])
+    target_flat = tf.reshape(target, [tf.shape(target)[0], -1])
+
+    # 样本级混淆矩阵
+    tp = tf.reduce_sum(tf.cast((pred_flat == 1) & (target_flat == 1), tf.float32), axis=1)
+    tn = tf.reduce_sum(tf.cast((pred_flat == 0) & (target_flat == 0), tf.float32), axis=1)
+    fp = tf.reduce_sum(tf.cast((pred_flat == 1) & (target_flat == 0), tf.float32), axis=1)
+    fn = tf.reduce_sum(tf.cast((pred_flat == 0) & (target_flat == 1), tf.float32), axis=1)
+
+    # 样本级指标计算
+    accuracy = (tp + tn) / (tp + tn + fp + fn + smooth)
+    precision = tp / (tp + fp + smooth)
+    recall = tp / (tp + fn + smooth)  # 修复原代码recall计算错误（原代码误用fp）
+    f1 = 2 * precision * recall / (precision + recall + smooth)
 
     return {
-        'TP': TP, 'TN': TN, 'FP': FP, 'FN': FN,
+        'TP': tp, 'TN': tn, 'FP': fp, 'FN': fn,
         'accuracy': accuracy, 'precision': precision,
         'recall': recall, 'f1': f1
     }
 
-
-# 新增DSC计算函数
-def calculate_dsc(pred_logits, target, smooth=1e-6):
-    """计算DSC（Dice Similarity Coefficient）"""
+# 样本级DSC计算（返回每个样本的DSC）
+def calculate_dsc_per_sample(pred_logits, target, smooth=1e-6):
     pred = tf.nn.sigmoid(pred_logits)
-    pred_flat = tf.reshape(pred, [-1])
-    target_flat = tf.reshape(tf.cast(target, tf.float32), [-1])
+    pred_flat = tf.reshape(pred, [tf.shape(pred)[0], -1])
+    target_flat = tf.reshape(tf.cast(target, tf.float32), [tf.shape(target)[0], -1])
 
-    intersection = tf.reduce_sum(pred_flat * target_flat)
-    dsc = (2. * intersection + smooth) / (tf.reduce_sum(pred_flat) + tf.reduce_sum(target_flat) + smooth)
+    intersection = tf.reduce_sum(pred_flat * target_flat, axis=1)
+    dsc = (2. * intersection + smooth) / (tf.reduce_sum(pred_flat, axis=1) + tf.reduce_sum(target_flat, axis=1) + smooth)
     return dsc

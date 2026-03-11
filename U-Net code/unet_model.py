@@ -1,29 +1,27 @@
 # -*- coding: utf-8 -*-
 import tensorflow as tf
+from config import INPUT_SIZE, N_CHANNELS, N_CLASSES
 
-tf.disable_eager_execution()  # TF1.x必须禁用eager模式
+tf.disable_eager_execution()
 tf.reset_default_graph()
 
-
 class UNet:
-    def __init__(self, n_channels=3, n_classes=1, input_size=(768, 768)):
+    def __init__(self, n_channels=N_CHANNELS, n_classes=N_CLASSES, input_size=INPUT_SIZE):
         self.n_channels = n_channels
         self.n_classes = n_classes
         self.input_size = input_size
 
-    def double_conv(self, x, out_channels, is_training, name="double_conv"):
-        """(Conv → BN → ReLU) × 2（TF1.x版，增加is_training控制BN模式）"""
+    @staticmethod  # 新增装饰器
+    def double_conv(x, out_channels, is_training, name="double_conv"):
+        """(Conv → BN → ReLU) × 2"""
         with tf.variable_scope(name):
-            # 第一层卷积
             x = tf.layers.conv2d(
                 x, out_channels, kernel_size=3, padding='same',
                 use_bias=False, name='conv1'
             )
-            # BN层：训练时更新均值/方差，推理时使用滑动平均
             x = tf.layers.batch_normalization(x, training=is_training, name='bn1')
             x = tf.nn.relu(x, name='relu1')
 
-            # 第二层卷积
             x = tf.layers.conv2d(
                 x, out_channels, kernel_size=3, padding='same',
                 use_bias=False, name='conv2'
@@ -33,35 +31,34 @@ class UNet:
         return x
 
     def down_sample(self, x, out_channels, is_training, name="down"):
-        """下采样：MaxPool → DoubleConv（增加is_training）"""
+        """下采样：MaxPool → DoubleConv"""
         with tf.variable_scope(name):
             x = tf.layers.max_pooling2d(x, pool_size=2, strides=2, name='maxpool')
             x = self.double_conv(x, out_channels, is_training, name='double_conv')
         return x
 
     def up_sample(self, x1, x2, out_channels, is_training, name="up"):
-        """上采样：转置卷积 → 拼接 → DoubleConv（增加is_training）"""
+        """上采样：转置卷积 → 拼接 → DoubleConv"""
         with tf.variable_scope(name):
-            # 转置卷积上采样（匹配PyTorch ConvTranspose2d）
             x1 = tf.layers.conv2d_transpose(
                 x1, x1.get_shape()[-1] // 2, kernel_size=2, strides=2,
                 padding='same', use_bias=False, name='transpose_conv'
             )
 
-            # 处理尺寸不匹配（padding）
+            # 处理尺寸不匹配
             x1_shape = tf.shape(x1)
             x2_shape = tf.shape(x2)
             diff_h = x2_shape[1] - x1_shape[1]
             diff_w = x2_shape[2] - x1_shape[2]
-            x1 = tf.pad(x1, [[0, 0], [diff_h // 2, diff_h - diff_h // 2], [diff_w // 2, diff_w - diff_w // 2], [0, 0]])
+            x1 = tf.pad(x1, [[0, 0], [diff_h // 2, diff_h - diff_h // 2],
+                             [diff_w // 2, diff_w - diff_w // 2], [0, 0]])
 
-            # 拼接通道维度（x2在前，x1在后）
             x = tf.concat([x2, x1], axis=-1, name='concat')
             x = self.double_conv(x, out_channels, is_training, name='double_conv')
         return x
 
     def build_model(self, inputs, is_training):
-        """构建完整U-Net模型（返回logits，增加is_training参数）"""
+        """构建完整U-Net模型（补全输出层）"""
         # 输入层
         x1 = self.double_conv(inputs, 64, is_training, name='inc')
 
@@ -78,8 +75,8 @@ class UNet:
         x = self.up_sample(x, x1, 64, is_training, name='up4')
 
         # 输出层（1x1卷积，无激活）
-        logits = tf.layers.conv2d(
+        output = tf.layers.conv2d(
             x, self.n_classes, kernel_size=1, padding='same',
-            name='out_conv'
+            use_bias=True, name='output_conv'
         )
-        return logits
+        return output
