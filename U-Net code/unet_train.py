@@ -167,13 +167,17 @@ def train():
             print("Did not load an existing model; training begins from scratch with model parameters initialized.")
         # =================================================================
 
+        # 核心修改：仅在训练开始时初始化一次训练迭代器（移出epoch循环）
+        sess.run(graph['train_iter'].initializer)
+
         # 训练循环（原有逻辑完全不变）
         steps_per_epoch = graph['train_size'] // BATCH_SIZE
         global_step = 0
         for epoch in range(EPOCHS):
             print(f"\nEpoch {epoch + 1}/{EPOCHS}")
             print("-" * 40)
-            sess.run(graph['train_iter'].initializer)
+            # 移除：每个epoch重复初始化训练迭代器的代码
+            # sess.run(graph['train_iter'].initializer)
 
             # 训练批次
             train_loss = 0.0
@@ -191,7 +195,7 @@ def train():
             avg_train_loss = train_loss / steps_per_epoch
             train_losses.append(avg_train_loss)
 
-            # 验证批次
+            # 验证批次（验证迭代器仍每个epoch初始化，保证验证集完整遍历）
             sess.run(graph['val_iter'].initializer)
             val_loss, val_iou, val_precision, val_recall, val_f1, val_dsc, val_acc = 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0
             val_steps = 0
