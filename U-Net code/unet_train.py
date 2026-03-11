@@ -21,7 +21,7 @@ PATIENCE = 30  # 早停耐心值
 MODEL_SAVE_PATH = "/model/best_model.ckpt"  # 最优模型覆盖保存路径（DEFAULT: "/model/best_model.ckpt"）
 LATEST_MODEL_DIR = "/model/latest"  # 最新3个模型保存目录（DEFAULT: "/model/latest"）
 MAX_LATEST_MODELS = 3  # 保留最新的3个模型
-LOG_DIR = "./tensorboard_logs"  # TensorBoard日志保存路径（DEFAULT: "./tensorboard_logs"）
+LOG_DIR = "/tensorboard_logs"  # TensorBoard日志保存路径（DEFAULT: "/tensorboard_logs"）
 
 # ====================== 基于已有模型训练配置（核心修改）======================
 LOAD_EXIST_MODEL = False  # 开关：True=使用已有模型继续训练 | False=从头开始训练
