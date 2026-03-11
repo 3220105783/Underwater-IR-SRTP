@@ -229,7 +229,7 @@ def evaluate():
         plt.grid(axis='y', alpha=0.3)
         plt.xticks(rotation=15)  # 旋转x轴标签防止重叠
         plt.tight_layout()
-        plt.savefig("evaluation_results_tf1.png", dpi=150, bbox_inches='tight')
+        plt.savefig("evaluation_results.png", dpi=150, bbox_inches='tight')
         plt.show()
 
 

@@ -11,10 +11,10 @@ os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 config = tf.ConfigProto()
 config.gpu_options.allow_growth = True
 
-MODEL_PATH = "/model/best_model.ckpt"
-TEST_IMG_DIR = "/dataset/val/img"
-TEST_MASK_DIR = "/dataset/val/mask"
-SAVE_RESULT_DIR = "../predict_results_tf1"
+MODEL_PATH = "/model/best_model.ckpt"  # 最优模型覆盖保存路径（DEFAULT："/model/best_model.ckpt"）
+TEST_IMG_DIR = "/dataset/val/img"  #（DEFAULT："/dataset/val/img"）
+TEST_MASK_DIR = "/dataset/val/mask"  #（DEFAULT："/dataset/val/mask"）
+SAVE_RESULT_DIR = "/predict_results"  #（DEFAULT："/predict_results"）
 TARGET_SIZE = (768, 768)
 
 # ImageNet均值/标准差
