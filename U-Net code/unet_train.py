@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import os
+import shutil
 import numpy as np
 import tensorflow as tf
 import matplotlib.pyplot as plt
@@ -18,6 +19,8 @@ EPOCHS = 512
 LEARNING_RATE = 5e-5
 PATIENCE = 30  # 早停耐心值
 MODEL_SAVE_PATH = "/model/best_model.ckpt"
+LATEST_MODEL_DIR = "/model/latest"  # 最新模型保存目录
+MAX_LATEST_MODELS = 3  # 保留最新的3个模型
 LOG_DIR = "./tensorboard_logs"  # TensorBoard日志保存路径
 
 # 数据集路径
@@ -25,6 +28,52 @@ TRAIN_IMG_DIR = "/dataset/train/img"
 TRAIN_MASK_DIR = "/dataset/train/mask"
 VAL_IMG_DIR = "/dataset/val/img"
 VAL_MASK_DIR = "/dataset/val/mask"
+
+# 创建最新模型目录
+os.makedirs(LATEST_MODEL_DIR, exist_ok=True)
+
+
+# -------------------------- 辅助函数 --------------------------
+def save_latest_model(sess, saver, epoch, val_iou):
+    """保存最新模型，并只保留最近的3个"""
+    # 生成带epoch和iou的模型文件名
+    model_name = f"model_epoch_{epoch}_iou_{val_iou:.4f}"
+    save_path = os.path.join(LATEST_MODEL_DIR, model_name)
+
+    # 保存模型
+    saver.save(sess, save_path)
+    print(f"Saved latest model to: {save_path}")
+
+    # 获取所有保存的模型（按修改时间排序）
+    model_files = []
+    for item in os.listdir(LATEST_MODEL_DIR):
+        item_path = os.path.join(LATEST_MODEL_DIR, item)
+        if os.path.isdir(item_path) or item.endswith('.ckpt'):
+            # 获取模型的基准名称（去掉后缀）
+            if item.endswith('.ckpt'):
+                base_name = item[:-5]
+            else:
+                base_name = item
+            # 获取修改时间
+            mtime = os.path.getmtime(item_path)
+            model_files.append((base_name, mtime))
+
+    # 按修改时间升序排序（最旧的在前）
+    model_files.sort(key=lambda x: x[1])
+
+    # 如果超过MAX_LATEST_MODELS，删除最旧的
+    while len(model_files) > MAX_LATEST_MODELS:
+        oldest_model = model_files.pop(0)[0]
+        # 删除该模型的所有相关文件
+        for ext in ['.ckpt.data-00000-of-00001', '.ckpt.index', '.ckpt.meta', 'checkpoint']:
+            file_path = os.path.join(LATEST_MODEL_DIR, f"{oldest_model}{ext}")
+            if os.path.exists(file_path):
+                os.remove(file_path)
+        # 删除可能的目录
+        dir_path = os.path.join(LATEST_MODEL_DIR, oldest_model)
+        if os.path.exists(dir_path):
+            shutil.rmtree(dir_path)
+        print(f"Removed oldest model: {oldest_model}")
 
 
 # -------------------------- 构建训练图 --------------------------
@@ -70,7 +119,7 @@ def build_train_graph():
     merged_summary = tf.summary.merge_all()
 
     # 6. 模型保存
-    saver = tf.train.Saver(max_to_keep=1)
+    saver = tf.train.Saver(max_to_keep=None)  # 不限制保存数量，手动管理
 
     return {
         'train_iter': train_iter, 'train_batch': train_batch, 'train_size': train_size,
@@ -186,8 +235,11 @@ def train():
             # 早停+保存最佳模型
             if avg_val_iou > best_iou:
                 best_iou = avg_val_iou
+                # 保存最佳模型（覆盖原路径）
                 graph['saver'].save(sess, MODEL_SAVE_PATH)
-                print(f"Saving best model (IoU: {best_iou:.4f})")
+                print(f"Saving best model (IoU: {best_iou:.4f}) to {MODEL_SAVE_PATH}")
+                # 保存到最新模型目录
+                save_latest_model(sess, graph['saver'], epoch + 1, avg_val_iou)
                 patience_counter = 0
             else:
                 patience_counter += 1
