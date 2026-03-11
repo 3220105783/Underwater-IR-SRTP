@@ -31,10 +31,10 @@ LOG_DIR = "/tensorboard_logs"
 CUDA_VISIBLE_DEVICES = "0"
 
 # 训练参数
-BATCH_SIZE = 1
+BATCH_SIZE = 4
 EPOCHS = 512
 LEARNING_RATE = 5e-5
-PATIENCE = 30  # 早停耐心值
+PATIENCE = 25  # 早停耐心值
 MAX_LATEST_MODELS = 3  # 保留最新模型数
 LOAD_EXIST_MODEL = False  # 是否加载已有模型
 
