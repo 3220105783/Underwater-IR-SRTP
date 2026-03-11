@@ -84,32 +84,37 @@ def build_train_graph():
         VAL_IMG_DIR, VAL_MASK_DIR, BATCH_SIZE, is_train=False
     )
 
-    # 构建模型
+    # 构建模型：分别为训练/验证构建不同模式的模型
     inputs = tf.placeholder(tf.float32, [None, 768, 768, 3], name='inputs')
     masks = tf.placeholder(tf.float32, [None, 768, 768, 1], name='masks')
     unet = UNet(n_channels=3, n_classes=1)
-    # 关键修改：训练时is_training=True
-    logits = unet.build_model(inputs, is_training=True)
+    # 训练模式
+    logits_train = unet.build_model(inputs, is_training=True)
+    # 验证模式（新增）
+    logits_val = unet.build_model(inputs, is_training=False)
 
-    # 损失函数+优化器
-    loss = focal_dice_loss(logits, masks)
+    # 损失函数：区分训练/验证损失（新增）
+    loss_train = focal_dice_loss(logits_train, masks)
+    loss_val = focal_dice_loss(logits_val, masks)
+
+    # 优化器仅基于训练损失
     optimizer = tf.train.AdamOptimizer(learning_rate=LEARNING_RATE)
-    train_op = optimizer.minimize(loss)
+    train_op = optimizer.minimize(loss_train)
 
-    # 评估指标
-    iou = calculate_iou(logits, masks)
-    metrics = calculate_metrics(logits, masks)
-    dsc = calculate_dsc(logits, masks)
+    # 评估指标：基于验证模式的logits（修改）
+    iou = calculate_iou(logits_val, masks)
+    metrics = calculate_metrics(logits_val, masks)
+    dsc = calculate_dsc(logits_val, masks)
 
-    # TensorBoard摘要
-    tf.summary.scalar('train/loss', loss)
+    # TensorBoard摘要：修正验证损失为真实验证损失（修改）
+    tf.summary.scalar('train/loss', loss_train)
     tf.summary.scalar('val/iou', iou)
     tf.summary.scalar('val/accuracy', metrics['accuracy'])
     tf.summary.scalar('val/precision', metrics['precision'])
     tf.summary.scalar('val/recall', metrics['recall'])
     tf.summary.scalar('val/f1', metrics['f1'])
     tf.summary.scalar('val/dsc', dsc)
-    tf.summary.scalar('val/loss', loss)
+    tf.summary.scalar('val/loss', loss_val)  # 修正为验证损失
     merged_summary = tf.summary.merge_all()
 
     # 模型保存（不限制数量，手动管理）
@@ -119,7 +124,8 @@ def build_train_graph():
         'train_iter': train_iter, 'train_batch': train_batch, 'train_size': train_size,
         'val_iter': val_iter, 'val_batch': val_batch, 'val_size': val_size,
         'inputs': inputs, 'masks': masks,
-        'train_op': train_op, 'loss': loss, 'iou': iou, 'metrics': metrics, 'dsc': dsc,
+        'train_op': train_op, 'loss_train': loss_train, 'loss_val': loss_val,  # 修改：区分训练/验证损失
+        'iou': iou, 'metrics': metrics, 'dsc': dsc,
         'merged_summary': merged_summary, 'saver': saver
     }
 
@@ -132,6 +138,7 @@ def train():
     val_losses = []
     val_ious = []
     best_iou = 0.0
+    best_val_loss = float('inf')  # 新增：记录最佳验证损失
     patience_counter = 0
 
     # 启动Session
@@ -149,8 +156,8 @@ def train():
                     print(f"Successfully loaded existing model: {EXIST_MODEL_PATH}")
                     # 简单验证模型可用性
                     test_iou = sess.run(graph['iou'], feed_dict={
-                        graph['inputs']: np.zeros((1, 768, 768, 3)),  #（DEFAULT：768，768）
-                        graph['masks']: np.zeros((1, 768, 768, 1))  #（DEFAULT：768，768）
+                        graph['inputs']: np.zeros((1, 768, 768, 3)),
+                        graph['masks']: np.zeros((1, 768, 768, 1))
                     })
                     print(f"The existing model has been validated, basic IoU value: {test_iou:.4f}")
                 except Exception as e:
@@ -176,16 +183,15 @@ def train():
         for epoch in range(EPOCHS):
             print(f"\nEpoch {epoch + 1}/{EPOCHS}")
             print("-" * 40)
-            # 移除：每个epoch重复初始化训练迭代器的代码
-            # sess.run(graph['train_iter'].initializer)
 
             # 训练批次
             train_loss = 0.0
             for step in range(steps_per_epoch):
                 global_step += 1
                 img_batch, mask_batch = sess.run(graph['train_batch'])
+                # 修改：使用训练损失
                 _, loss_val, summary = sess.run(
-                    [graph['train_op'], graph['loss'], graph['merged_summary']],
+                    [graph['train_op'], graph['loss_train'], graph['merged_summary']],
                     feed_dict={graph['inputs']: img_batch, graph['masks']: mask_batch}
                 )
                 summary_writer.add_summary(summary, global_step)
@@ -202,8 +208,9 @@ def train():
             while True:
                 try:
                     img_batch, mask_batch = sess.run(graph['val_batch'])
+                    # 修改：使用验证损失
                     loss_val, iou_val, metrics_val, dsc_val, summary = sess.run(
-                        [graph['loss'], graph['iou'], graph['metrics'], graph['dsc'], graph['merged_summary']],
+                        [graph['loss_val'], graph['iou'], graph['metrics'], graph['dsc'], graph['merged_summary']],
                         feed_dict={graph['inputs']: img_batch, graph['masks']: mask_batch}
                     )
                     summary_writer.add_summary(summary, global_step)
@@ -232,22 +239,40 @@ def train():
             # 打印本轮指标
             print(f"Train Loss: {avg_train_loss:.4f} | Val Loss: {avg_val_loss:.4f}")
             print(f"Val IoU: {avg_val_iou:.4f} | Val DSC: {avg_val_dsc:.4f}")
-            print(f"Val Precision: {avg_val_precision:.4f} | Val Recall: {avg_val_recall:.4f} | Val F1: {avg_val_f1:.4f}")
+            print(
+                f"Val Precision: {avg_val_precision:.4f} | Val Recall: {avg_val_recall:.4f} | Val F1: {avg_val_f1:.4f}")
             print(f"Val Accuracy: {avg_val_acc:.4f}")
 
-            # 保存最优模型+最新模型
-            if avg_val_iou > best_iou:
-                best_iou = avg_val_iou
+            # 保存最优模型+最新模型（修改早停逻辑）
+            improved = False
+            # 条件1：IoU提升 或 条件2：损失下降（且IoU未显著下降，这里设置IoU下降不超过0.01）
+            if (avg_val_iou > best_iou) or (avg_val_loss < best_val_loss and (best_iou - avg_val_iou) < 0.01):
+                # 更新最优指标
+                if avg_val_iou > best_iou:
+                    best_iou = avg_val_iou
+                if avg_val_loss < best_val_loss:
+                    best_val_loss = avg_val_loss
+                # 保存模型
                 graph['saver'].save(sess, MODEL_SAVE_PATH)
-                print(f"Saving best model (IoU: {best_iou:.4f}) to {MODEL_SAVE_PATH}")
+                print(f"Saving best model (IoU: {best_iou:.4f}, Val Loss: {best_val_loss:.4f}) to {MODEL_SAVE_PATH}")
                 save_latest_model(sess, graph['saver'], epoch + 1, avg_val_iou)
                 patience_counter = 0
-            else:
+                improved = True
+            # 新增：每5个epoch强制保存一次最新模型（避免长期无IoU提升但损失下降时丢失模型）
+            if (epoch + 1) % 5 == 0 and not improved:
+                save_latest_model(sess, graph['saver'], epoch + 1, avg_val_iou)
+                print(f"Forced save latest model at epoch {epoch + 1} (no significant improvement but regular save)")
+
+            # 修改早停逻辑：仅当IoU和损失均无改善时，计数器增加
+            if not improved:
                 patience_counter += 1
                 print(f"Early stopping counter: {patience_counter}/{PATIENCE}")
                 if patience_counter >= PATIENCE:
-                    print("IoU has not improved for multiple consecutive epochs, stopping training early")
+                    print(
+                        "Neither IoU nor validation loss improved for multiple consecutive epochs, stopping training early")
                     break
+            else:
+                patience_counter = 0  # 任意指标改善则重置计数器
 
         # 训练完成
         summary_writer.close()
