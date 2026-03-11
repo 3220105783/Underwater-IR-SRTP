@@ -46,10 +46,6 @@ def preprocess_img(img_path):
 
 
 def predict():
-    # 创建保存目录
-    if not os.path.exists(SAVE_RESULT_DIR):
-        os.makedirs(SAVE_RESULT_DIR)
-
     # 1. 构建图
     tf.reset_default_graph()
 
