@@ -14,10 +14,16 @@ os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 config = tf.ConfigProto()
 config.gpu_options.allow_growth = True
 
-MODEL_PATH = "/model/best_model.ckpt"  #（DEFAULT："/model/best_model.ckpt"）
-VAL_IMG_DIR = "/dataset/val/img"  #（DEFAULT："/dataset/val/img"）
-VAL_MASK_DIR = "/dataset/val/mask"  #（DEFAULT："/dataset/val/mask"）
+MODEL_PATH = "/model/best_model.ckpt"  #（DEFAULT: "/model/best_model.ckpt"）
+VAL_IMG_DIR = "/dataset/val/img"  #（DEFAULT: "/dataset/val/img"）
+VAL_MASK_DIR = "/dataset/val/mask"  #（DEFAULT: "/dataset/val/mask"）
 BATCH_SIZE = 2
+
+
+#训练结果保存路径
+TRAIN_RESULT_DIR = "/results/train"  # 训练相关结果（DEFAULT: "/results/train"）
+EVAL_RESULT_DIR = "/results/evaluation"    # 评估相关结果（DEFAULT: "/results/evaluation"）
+PRED_RESULT_DIR = "/results/predict" # 预测相关结果（DEFAULT: "/results/predict"）
 
 
 def calculate_asd(pred_mask, gt_mask):
@@ -229,7 +235,8 @@ def evaluate():
         plt.grid(axis='y', alpha=0.3)
         plt.xticks(rotation=15)  # 旋转x轴标签防止重叠
         plt.tight_layout()
-        plt.savefig("evaluation_results.png", dpi=150, bbox_inches='tight')
+        eval_result_path = os.path.join(EVAL_RESULT_DIR, "evaluation_results.png")
+        plt.savefig(eval_result_path, dpi=150, bbox_inches='tight')
         plt.show()
 
 

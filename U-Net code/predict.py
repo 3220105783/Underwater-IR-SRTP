@@ -11,11 +11,17 @@ os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 config = tf.ConfigProto()
 config.gpu_options.allow_growth = True
 
-MODEL_PATH = "/model/best_model.ckpt"  # 最优模型覆盖保存路径（DEFAULT："/model/best_model.ckpt"）
-TEST_IMG_DIR = "/dataset/val/img"  #（DEFAULT："/dataset/val/img"）
-TEST_MASK_DIR = "/dataset/val/mask"  #（DEFAULT："/dataset/val/mask"）
-SAVE_RESULT_DIR = "/predict_results"  #（DEFAULT："/predict_results"）
+MODEL_PATH = "/model/best_model.ckpt"  # 最优模型覆盖保存路径（DEFAULT: "/model/best_model.ckpt"）
+TEST_IMG_DIR = "/dataset/val/img"  #（DEFAULT: "/dataset/val/img"）
+TEST_MASK_DIR = "/dataset/val/mask"  #（DEFAULT: "/dataset/val/mask"）
+SAVE_RESULT_DIR = "/predict_results"  #（DEFAULT: "/predict_results"）
 TARGET_SIZE = (768, 768)
+
+#训练结果保存路径
+TRAIN_RESULT_DIR = "/results/train"  # 训练相关结果（DEFAULT: "/results/train"）
+EVAL_RESULT_DIR = "/results/evaluation"    # 评估相关结果（DEFAULT: "/results/evaluation"）
+PRED_RESULT_DIR = "/results/predict" # 预测相关结果（DEFAULT: "/results/predict"）
+
 
 # ImageNet均值/标准差
 MEAN = [0.485, 0.456, 0.406]
@@ -100,13 +106,13 @@ def predict():
             plt.axis("off")
 
             # 保存结果
-            save_path = os.path.join(SAVE_RESULT_DIR, f"result_{img_name}")
+            save_path = os.path.join(PRED_RESULT_DIR, f"result_{img_name}")
             plt.tight_layout()
             plt.savefig(save_path, dpi=150, bbox_inches="tight")
             plt.close()
             print(f"Prediction results saved: {save_path}")
 
-    print(f"All images prediction completed! Results saved in: {SAVE_RESULT_DIR}")
+    print(f"All images prediction completed! Results saved in: {PRED_RESULT_DIR}")
 
 
 if __name__ == "__main__":

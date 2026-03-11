@@ -18,23 +18,29 @@ BATCH_SIZE = 1
 EPOCHS = 512
 LEARNING_RATE = 5e-5
 PATIENCE = 30  # 早停耐心值
-MODEL_SAVE_PATH = "/model/best_model.ckpt"  # 最优模型覆盖保存路径（DEFAULT："/model/best_model.ckpt"）
-LATEST_MODEL_DIR = "/model/latest"  # 最新3个模型保存目录（DEFAULT："/model/latest"）
+MODEL_SAVE_PATH = "/model/best_model.ckpt"  # 最优模型覆盖保存路径（DEFAULT: "/model/best_model.ckpt"）
+LATEST_MODEL_DIR = "/model/latest"  # 最新3个模型保存目录（DEFAULT: "/model/latest"）
 MAX_LATEST_MODELS = 3  # 保留最新的3个模型
-LOG_DIR = "./tensorboard_logs"  # TensorBoard日志保存路径（DEFAULT："./tensorboard_logs"）
+LOG_DIR = "./tensorboard_logs"  # TensorBoard日志保存路径（DEFAULT: "./tensorboard_logs"）
 
 # ====================== 基于已有模型训练配置（核心修改）======================
 LOAD_EXIST_MODEL = False  # 开关：True=使用已有模型继续训练 | False=从头开始训练
-EXIST_MODEL_DIR = "/model/exist"  # 已有模型存放目录：将之前的任意模型放入此目录即可（DEFAULT："/model/exist"）
-EXIST_MODEL_NAME = "exist.ckpt"  # 已有模型的文件名（保持和训练保存的一致即可，DEFAULT："exist.ckpt"）
+EXIST_MODEL_DIR = "/model/exist"  # 已有模型存放目录：将之前的任意模型放入此目录即可（DEFAULT: "/model/exist"）
+EXIST_MODEL_NAME = "exist.ckpt"  # 已有模型的文件名（保持和训练保存的一致即可，DEFAULT: "exist.ckpt"）
 EXIST_MODEL_PATH = os.path.join(EXIST_MODEL_DIR, EXIST_MODEL_NAME)
 # ============================================================================
 
 # 数据集路径
-TRAIN_IMG_DIR = "/dataset/train/img"  #（DEFAULT："/dataset/train/img"）
-TRAIN_MASK_DIR = "/dataset/train/mask"  #（DEFAULT："/dataset/train/mask"）
-VAL_IMG_DIR = "/dataset/val/img"  #（DEFAULT："/dataset/val/img"）
-VAL_MASK_DIR = "/dataset/val/mask"  #（DEFAULT："/dataset/val/mask"）
+TRAIN_IMG_DIR = "/dataset/train/img"  #（DEFAULT: "/dataset/train/img"）
+TRAIN_MASK_DIR = "/dataset/train/mask"  #（DEFAULT: "/dataset/train/mask"）
+VAL_IMG_DIR = "/dataset/val/img"  #（DEFAULT: "/dataset/val/img"）
+VAL_MASK_DIR = "/dataset/val/mask"  #（DEFAULT: "/dataset/val/mask"）
+
+
+#训练结果保存路径
+TRAIN_RESULT_DIR = "/results/train"  # 训练相关结果（DEFAULT: "/results/train"）
+EVAL_RESULT_DIR = "/results/evaluation"    # 评估相关结果（DEFAULT: "/results/evaluation"）
+PRED_RESULT_DIR = "/results/predict" # 预测相关结果（DEFAULT: "/results/predict"）
 
 
 # -------------------------- 保存最新模型 --------------------------
@@ -266,7 +272,8 @@ def train():
         ax3.axis('off')
         ax4.axis('off')
         plt.tight_layout()
-        plt.savefig('training_history.png', dpi=150)
+        train_history_path = os.path.join(TRAIN_RESULT_DIR, "training_history.png")
+        plt.savefig(train_history_path, dpi=150, bbox_inches='tight')
         plt.show()
 
 
