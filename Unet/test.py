@@ -1,59 +1,172 @@
+# -*- coding: utf-8 -*-
 import os
-import cv2
 import numpy as np
+import cv2
 import tensorflow as tf
-from config import Config
-from utils import create_dirs, set_gpu_config
+from PIL import Image
+import config
 from unet_model import unet_model
+from unet_dataset import load_image_mask_pairs, preprocess_image_mask
+from utils import (iou_score, dice_coefficient, precision, recall, f1_score,
+                   load_best_model, visualize_prediction, save_evaluation_results)
 
-# 禁用 TensorFlow 2.x 行为
-tf.disable_v2_behavior()
+
+def predict_single_image(sess, inputs, logits, is_training_pl, img_path):
+    """
+    TF1.x 预测单张图像
+    """
+    # 预处理图像
+    image, _ = preprocess_image_mask(img_path, None, augment=False)
+    image_batch = np.expand_dims(image, axis=0)
+
+    # 预测
+    pred_mask = sess.run(
+        logits,
+        feed_dict={
+            inputs: image_batch,
+            is_training_pl: False
+        }
+    )[0]
+    pred_mask = np.where(pred_mask > config.THRESHOLD, 1.0, 0.0)
+
+    return image, pred_mask
 
 
-def test():
-    """测试模块：加载模型处理test/img中的图片，保存结果到test_output"""
-    create_dirs()
-    set_gpu_config()
+def evaluate_model(sess, inputs, logits, is_training_pl, test_img_paths, test_mask_paths):
+    """
+    TF1.x 评估模型性能
+    """
+    all_iou = []
+    all_dice = []
+    all_precision = []
+    all_recall = []
+    all_f1 = []
 
-    # 加载模型
-    model = unet_model(input_size=(*Config.IMG_SIZE, Config.IN_CHANNELS), out_channels=Config.OUT_CHANNELS)
-    if not os.path.exists(Config.BEST_MODEL_PATH + '.index'):
-        print(f"Best model not found at {Config.BEST_MODEL_PATH}")
+    # 创建评估指标计算图
+    labels_pl = tf.placeholder(tf.float32, [None, config.IMAGE_HEIGHT, config.IMAGE_WIDTH, 1], name='labels_pl')
+    iou_op = iou_score(labels_pl, logits)
+    dice_op = dice_coefficient(labels_pl, logits)
+    prec_op = precision(labels_pl, logits)
+    rec_op = recall(labels_pl, logits)
+    f1_op = f1_score(labels_pl, logits)
+
+    for img_path, mask_path in zip(test_img_paths, test_mask_paths):
+        # 加载数据
+        image, true_mask = preprocess_image_mask(img_path, mask_path)
+        image_batch = np.expand_dims(image, axis=0)
+        mask_batch = np.expand_dims(true_mask, axis=0)
+
+        # 计算指标
+        iou_val, dice_val, prec_val, rec_val, f1_val = sess.run(
+            [iou_op, dice_op, prec_op, rec_op, f1_op],
+            feed_dict={
+                inputs: image_batch,
+                labels_pl: mask_batch,
+                is_training_pl: False
+            }
+        )
+
+        all_iou.append(iou_val)
+        all_dice.append(dice_val)
+        all_precision.append(prec_val)
+        all_recall.append(rec_val)
+        all_f1.append(f1_val)
+
+    # 计算平均指标
+    results = {
+        'mean_iou': np.mean(all_iou),
+        'mean_dice': np.mean(all_dice),
+        'mean_precision': np.mean(all_precision),
+        'mean_recall': np.mean(all_recall),
+        'mean_f1': np.mean(all_f1),
+        'std_iou': np.std(all_iou),
+        'std_dice': np.std(all_dice)
+    }
+
+    return results
+
+
+def test_unet():
+    """
+    TF1.x 测试U-Net模型
+    """
+    # 重置图
+    tf.reset_default_graph()
+
+    # 1. 创建模型图
+    inputs = tf.placeholder(
+        tf.float32,
+        [None, config.IMAGE_HEIGHT, config.IMAGE_WIDTH, config.IMAGE_CHANNELS],
+        name='inputs'
+    )
+    is_training_pl = tf.placeholder(tf.bool, name='is_training')
+    logits = unet_model(inputs, is_training=is_training_pl)
+
+    # 2. 创建Session
+    sess = tf.Session(config=config.TF_CONFIG)
+
+    # 3. 加载最佳模型
+    print("加载最佳模型...")
+    try:
+        load_best_model(sess)
+    except FileNotFoundError as e:
+        print(f"模型加载失败：{e}")
+        sess.close()
         return
-    model.load_weights(Config.BEST_MODEL_PATH)
-    print(f"Loaded best model from {Config.BEST_MODEL_PATH}")
 
-    # 处理测试图片
-    test_files = [f for f in os.listdir(Config.TEST_IMG_DIR) if os.path.isfile(os.path.join(Config.TEST_IMG_DIR, f))]
-    for img_file in test_files:
-        img_path = os.path.join(Config.TEST_IMG_DIR, img_file)
+    # 4. 加载测试数据集
+    print("加载测试数据集...")
+    test_img_paths, test_mask_paths = load_image_mask_pairs(config.TEST_IMG_DIR, config.TEST_MASK_DIR)
+    print(f"测试集样本数：{len(test_img_paths)}")
 
-        # 读取图片
-        if Config.IN_CHANNELS == 1:
-            img = cv2.imread(img_path, cv2.IMREAD_GRAYSCALE)
-        else:
-            img = cv2.imread(img_path)
-            img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+    if len(test_img_paths) == 0:
+        print("测试集为空！")
+        sess.close()
+        return
 
-        orig_size = img.shape[:2]
-        # 预处理
-        img_resized = cv2.resize(img, Config.IMG_SIZE)
-        img_norm = img_resized / 255.0
-        img_input = np.expand_dims(img_norm, axis=0)
-        if Config.IN_CHANNELS == 1:
-            img_input = np.expand_dims(img_input, axis=-1)
+    # 5. 预测模式
+    if config.PREDICT_MODE:
+        print("开始预测并生成结果...")
+        for idx, (img_path, mask_path) in enumerate(zip(test_img_paths, test_mask_paths)):
+            # 预测
+            image, pred_mask = predict_single_image(sess, inputs, logits, is_training_pl, img_path)
 
-        # 预测
-        pred = model.predict(img_input)
-        pred_mask = (pred[0, :, :, 0] > 0.5).astype(np.uint8) * 255
-        # 恢复原始尺寸
-        pred_mask = cv2.resize(pred_mask, (orig_size[1], orig_size[0]), interpolation=cv2.INTER_NEAREST)
+            # 加载真实掩码
+            _, true_mask = preprocess_image_mask(img_path, mask_path)
 
-        # 保存结果
-        output_path = os.path.join(Config.TEST_OUTPUT_DIR, f"pred_{img_file}")
-        cv2.imwrite(output_path, pred_mask)
-        print(f"Saved prediction to {output_path}")
+            # 保存可视化结果
+            img_name = os.path.basename(img_path)
+            save_path = os.path.join(config.TEST_OUTPUT_DIR, f'pred_{img_name}')
+            visualize_prediction(image, true_mask, pred_mask, save_path)
+
+            if (idx + 1) % 10 == 0:
+                print(f"已处理 {idx + 1}/{len(test_img_paths)} 张图像")
+
+        print(f"预测结果已保存到：{config.TEST_OUTPUT_DIR}")
+
+    # 6. 评估模式
+    if config.EVALUATE_MODE:
+        print("开始评估模型性能...")
+        results = evaluate_model(sess, inputs, logits, is_training_pl, test_img_paths, test_mask_paths)
+
+        # 打印评估结果
+        print("\n模型评估结果：")
+        print("=" * 50)
+        for metric, value in results.items():
+            print(f"{metric}: {value:.4f}")
+
+        # 保存评估结果
+        if config.SAVE_EVALUATION_RESULTS:
+            save_evaluation_results(results, config.EVALUATION_SAVE_PATH)
+
+    # 7. 关闭Session
+    sess.close()
+    print("\n测试完成！")
 
 
-if __name__ == '__main__':
-    test()
+if __name__ == "__main__":
+    # 设置GPU内存增长
+    os.environ['TF_FORCE_GPU_ALLOW_GROWTH'] = 'true'
+
+    # 运行测试
+    test_unet()

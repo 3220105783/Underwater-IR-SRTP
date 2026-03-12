@@ -1,94 +1,244 @@
+# -*- coding: utf-8 -*-
 import os
+import cv2
 import numpy as np
-import matplotlib.pyplot as plt
 import tensorflow as tf
-from tensorflow.keras.callbacks import Callback
-from config import Config
+import matplotlib.pyplot as plt
+import config
+
+# 设置matplotlib
+plt.rcParams['font.sans-serif'] = ['DejaVu Sans']
+plt.rcParams['axes.unicode_minus'] = False
 
 
-def create_dirs():
-    """创建所需的文件夹结构"""
-    dirs = [
-        Config.TRAIN_IMG_DIR, Config.TRAIN_MASK_DIR,
-        Config.VAL_IMG_DIR, Config.VAL_MASK_DIR,
-        Config.TEST_IMG_DIR, Config.TEST_MASK_DIR,
-        Config.BEST_MODEL_DIR, Config.LATEST_MODEL_DIR, Config.EXIST_MODEL_DIR,
-        Config.RESULTS_DIR, Config.TENSORBOARD_DIR, Config.TEST_OUTPUT_DIR
-    ]
-    for d in dirs:
-        os.makedirs(d, exist_ok=True)
+# ===================== 评估指标函数（TF1.x） =====================
+def iou_score(y_true, y_pred, name='iou_score'):
+    """
+    TF1.x 计算IoU
+    """
+    with tf.variable_scope(name):
+        y_pred = tf.round(y_pred)  # 二值化
+        intersection = tf.reduce_sum(tf.abs(y_true * y_pred), axis=[1, 2, 3])
+        union = tf.reduce_sum(y_true, axis=[1, 2, 3]) + tf.reduce_sum(y_pred, axis=[1, 2, 3]) - intersection
+        iou = (intersection + tf.keras.backend.epsilon()) / (union + tf.keras.backend.epsilon())
+        return tf.reduce_mean(iou)
 
 
-def set_gpu_config():
-    """配置 GPU 内存增长"""
-    config = tf.ConfigProto()
-    config.gpu_options.allow_growth = True
-    sess = tf.Session(config=config)
-    tf.keras.backend.set_session(sess)
+def dice_coefficient(y_true, y_pred, name='dice_coefficient'):
+    """
+    TF1.x 计算Dice系数
+    """
+    with tf.variable_scope(name):
+        y_pred = tf.round(y_pred)
+        intersection = tf.reduce_sum(y_true * y_pred, axis=[1, 2, 3])
+        dice = (2. * intersection + tf.keras.backend.epsilon()) / (
+                tf.reduce_sum(y_true, axis=[1, 2, 3]) + tf.reduce_sum(y_pred,
+                                                                      axis=[1, 2, 3]) + tf.keras.backend.epsilon()
+        )
+        return tf.reduce_mean(dice)
 
 
-def count_files(dir_path):
-    """统计目录下的文件数量"""
-    return len([f for f in os.listdir(dir_path) if os.path.isfile(os.path.join(dir_path, f))])
+def precision(y_true, y_pred, name='precision'):
+    """
+    TF1.x 计算精确率
+    """
+    with tf.variable_scope(name):
+        y_pred = tf.round(y_pred)
+        true_positives = tf.reduce_sum(tf.round(tf.clip_by_value(y_true * y_pred, 0, 1)))
+        predicted_positives = tf.reduce_sum(tf.round(tf.clip_by_value(y_pred, 0, 1)))
+        precision = true_positives / (predicted_positives + tf.keras.backend.epsilon())
+        return precision
 
 
-def plot_training_history(history):
-    """绘制训练过程的损失、准确率和IoU曲线"""
-    plt.figure(figsize=(12, 4))
+def recall(y_true, y_pred, name='recall'):
+    """
+    TF1.x 计算召回率
+    """
+    with tf.variable_scope(name):
+        y_pred = tf.round(y_pred)
+        true_positives = tf.reduce_sum(tf.round(tf.clip_by_value(y_true * y_pred, 0, 1)))
+        possible_positives = tf.reduce_sum(tf.round(tf.clip_by_value(y_true, 0, 1)))
+        recall = true_positives / (possible_positives + tf.keras.backend.epsilon())
+        return recall
 
-    # 损失曲线
-    plt.subplot(1, 3, 1)
-    plt.plot(history['loss'], label='Train Loss')
-    plt.plot(history['val_loss'], label='Val Loss')
-    plt.title('Loss')
-    plt.xlabel('Epoch')
-    plt.ylabel('Loss')
-    plt.legend()
 
-    # 准确率曲线
-    plt.subplot(1, 3, 2)
-    plt.plot(history['accuracy'], label='Train Accuracy')
-    plt.plot(history['val_accuracy'], label='Val Accuracy')
-    plt.title('Accuracy')
-    plt.xlabel('Epoch')
-    plt.ylabel('Accuracy')
-    plt.legend()
+def f1_score(y_true, y_pred, name='f1_score'):
+    """
+    TF1.x 计算F1分数
+    """
+    with tf.variable_scope(name):
+        prec = precision(y_true, y_pred)
+        rec = recall(y_true, y_pred)
+        f1 = 2 * ((prec * rec) / (prec + rec + tf.keras.backend.epsilon()))
+        return f1
 
-    # IoU曲线
-    plt.subplot(1, 3, 3)
-    plt.plot(history['mean_io_u'], label='Train IoU')
-    plt.plot(history['val_mean_io_u'], label='Val IoU')
-    plt.title('Mean IoU')
-    plt.xlabel('Epoch')
-    plt.ylabel('IoU')
-    plt.legend()
+
+# ===================== 损失函数（TF1.x） =====================
+def focal_loss(y_true, y_pred, alpha=config.FOCAL_ALPHA, gamma=config.FOCAL_GAMMA, name='focal_loss'):
+    """
+    TF1.x Focal Loss
+    """
+    with tf.variable_scope(name):
+        epsilon = tf.keras.backend.epsilon()
+        y_pred = tf.clip_by_value(y_pred, epsilon, 1. - epsilon)
+
+        # Binary focal loss
+        p_t = tf.where(tf.equal(y_true, 1), y_pred, 1 - y_pred)
+        alpha_t = tf.where(tf.equal(y_true, 1), alpha, 1 - alpha)
+        focal_loss = -alpha_t * tf.pow((1 - p_t), gamma) * tf.log(p_t)
+
+        return tf.reduce_mean(focal_loss)
+
+
+def bce_dice_focal_iou_loss(y_true, y_pred, name='combined_loss'):
+    """
+    TF1.x 组合损失函数
+    """
+    with tf.variable_scope(name):
+        # BCE损失
+        bce = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(
+            labels=y_true,
+            logits=tf.log(y_pred / (1 - y_pred + tf.keras.backend.epsilon()))
+        ))
+
+        # Dice损失
+        dice = 1 - dice_coefficient(y_true, y_pred)
+
+        # Focal损失
+        focal = focal_loss(y_true, y_pred)
+
+        # IoU损失
+        iou = 1 - iou_score(y_true, y_pred)
+
+        # 加权组合
+        total_loss = (
+                config.BCE_WEIGHT * bce +
+                config.DICE_WEIGHT * dice +
+                config.FOCAL_WEIGHT * focal +
+                config.IOU_WEIGHT * iou
+        )
+
+        return total_loss
+
+
+# ===================== 可视化函数 =====================
+def plot_training_history(history, save_path):
+    """
+    绘制训练历史曲线
+    """
+    metrics = ['loss', 'iou_score', 'accuracy', 'precision', 'recall', 'f1_score']
+    val_metrics = ['val_' + m for m in metrics]
+
+    plt.figure(figsize=(15, 10))
+
+    for i, metric in enumerate(metrics):
+        plt.subplot(2, 3, i + 1)
+        if metric in history:
+            plt.plot(history[metric], label=f'Train {metric}')
+        if val_metrics[i] in history:
+            plt.plot(history[val_metrics[i]], label=f'Val {metric}')
+        plt.title(f'{metric} over epochs')
+        plt.xlabel('Epoch')
+        plt.ylabel(metric)
+        plt.legend()
+        plt.grid(True)
 
     plt.tight_layout()
-    plt.savefig(os.path.join(Config.RESULTS_DIR, 'training_history.png'))
+    plt.savefig(save_path)
     plt.close()
 
 
-class CleanLatestModels(Callback):
-    """自定义Callback：清理旧的latest模型（保留最近3个）"""
+def visualize_prediction(image, mask, pred_mask, save_path):
+    """
+    可视化预测结果
+    """
+    # 转换为RGB图像
+    image = (image * 255).astype(np.uint8)
+    mask = (mask * 255).astype(np.uint8)
+    pred_mask = (pred_mask * 255).astype(np.uint8)
 
-    def on_epoch_end(self, epoch, logs=None):
-        files = [f for f in os.listdir(Config.LATEST_MODEL_DIR) if
-                 f.startswith('latest_model_') and f.endswith('.ckpt.index')]
-        if len(files) > 3:
-            files.sort(key=lambda x: int(x.split('_')[2].split('.')[0]))
-            for f in files[:-3]:
-                base = f.replace('.index', '')
-                for ext in ['.index', '.data-00000-of-00001', '.meta']:
-                    os.remove(os.path.join(Config.LATEST_MODEL_DIR, base + ext))
+    # 创建叠加图像
+    overlay = image.copy()
+    pred_mask_rgb = np.zeros_like(image)
+    pred_mask_rgb[:, :, 0] = pred_mask[:, :, 0]  # 红色通道
+    overlay = cv2.addWeighted(overlay, 1 - config.PREDICTION_ALPHA,
+                              pred_mask_rgb, config.PREDICTION_ALPHA, 0)
+
+    # 检测裂缝区域并标注
+    contours, _ = cv2.findContours(pred_mask.squeeze(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    for contour in contours:
+        if cv2.contourArea(contour) > 100:  # 过滤小区域
+            x, y, w, h = cv2.boundingRect(contour)
+            cv2.putText(overlay, 'crack', (x, y - 10), config.FONT,
+                        config.FONT_SCALE, config.FONT_COLOR, config.FONT_THICKNESS)
+
+    # 创建拼接图像
+    mask_3ch = cv2.cvtColor(mask.squeeze(), cv2.COLOR_GRAY2RGB)
+    pred_mask_3ch = cv2.cvtColor(pred_mask.squeeze(), cv2.COLOR_GRAY2RGB)
+
+    combined = np.hstack((image, mask_3ch, pred_mask_3ch, overlay))
+
+    # 保存图像
+    cv2.imwrite(save_path, combined)
 
 
-class SaveHistory(Callback):
-    """自定义Callback：保存训练历史"""
+# ===================== 模型保存与加载（TF1.x） =====================
+def save_model_checkpoint(sess, saver, epoch, val_loss, is_best=False):
+    """
+    TF1.x 保存模型检查点
+    """
+    # 保存最佳模型
+    if is_best:
+        model_path = os.path.join(config.BEST_MODEL_DIR, 'best_model')
+        saver.save(sess, model_path)
+        print(f"保存最佳模型到：{model_path}")
 
-    def on_train_begin(self, logs=None):
-        self.history = {k: [] for k in ['loss', 'accuracy', 'mean_io_u', 'val_loss', 'val_accuracy', 'val_mean_io_u']}
+    # 保存最新模型
+    model_filename = f'model_epoch_{epoch}_val_loss_{val_loss:.4f}'
+    model_path = os.path.join(config.LATEST_MODEL_DIR, model_filename)
+    saver.save(sess, model_path)
 
-    def on_epoch_end(self, epoch, logs=None):
-        for k in self.history.keys():
-            self.history[k].append(logs[k])
-        np.save(os.path.join(Config.RESULTS_DIR, 'training_history.npy'), self.history)
+    # 清理旧模型
+    model_files = sorted([f for f in os.listdir(config.LATEST_MODEL_DIR) if f.endswith('.meta')],
+                         key=lambda x: os.path.getctime(os.path.join(config.LATEST_MODEL_DIR, x)))
+    if len(model_files) > config.KEEP_LATEST_MODELS:
+        for old_meta in model_files[:-config.KEEP_LATEST_MODELS]:
+            # 删除相关文件
+            base_name = old_meta[:-5]  # 去掉.meta后缀
+            for ext in ['.meta', '.index', '.data-00000-of-00001']:
+                file_path = os.path.join(config.LATEST_MODEL_DIR, base_name + ext)
+                if os.path.exists(file_path):
+                    os.remove(file_path)
+            print(f"删除旧模型文件：{base_name}")
+
+
+def load_best_model(sess, model_path=None):
+    """
+    TF1.x 加载最佳模型
+    """
+    if model_path is None:
+        model_path = os.path.join(config.BEST_MODEL_DIR, 'best_model')
+
+    if not os.path.exists(model_path + '.meta'):
+        raise FileNotFoundError(f"模型文件不存在：{model_path}")
+
+    # 创建Saver
+    saver = tf.train.Saver()
+    saver.restore(sess, model_path)
+    print(f"成功加载模型：{model_path}")
+
+    return saver
+
+
+# ===================== 评估结果保存 =====================
+def save_evaluation_results(results, save_path):
+    """
+    保存评估结果到文件
+    """
+    with open(save_path, 'w', encoding='utf-8') as f:
+        f.write("U-Net模型评估结果（混凝土裂缝识别）\n")
+        f.write("=" * 50 + "\n")
+        for metric, value in results.items():
+            f.write(f"{metric}: {value:.4f}\n")
+
+    print(f"评估结果已保存到：{save_path}")

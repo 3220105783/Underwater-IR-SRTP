@@ -1,65 +1,165 @@
+# -*- coding: utf-8 -*-
 import tensorflow as tf
-from config import Config
+import config
 
 
-def unet_model(input_size=(256, 256, 1), out_channels=1):
-    """标准 U-Net 模型实现"""
-    inputs = tf.keras.layers.Input(input_size)
+def conv_block(input_tensor, num_filters, kernel_size=3, batch_norm=True, dropout_rate=0.0, is_training=True,
+               name='conv_block'):
+    """
+    TF1.x 卷积块：Conv2D -> BatchNorm -> ReLU (两层)
+    """
+    with tf.variable_scope(name):
+        # 第一层卷积
+        x = tf.layers.conv2d(
+            inputs=input_tensor,
+            filters=num_filters,
+            kernel_size=kernel_size,
+            padding='same',
+            kernel_regularizer=tf.contrib.layers.l2_regularizer(1e-4),
+            name='conv1'
+        )
 
-    # 编码器 (下采样)
-    c1 = tf.keras.layers.Conv2D(64, (3, 3), activation='relu', padding='same')(inputs)
-    c1 = tf.keras.layers.Conv2D(64, (3, 3), activation='relu', padding='same')(c1)
-    p1 = tf.keras.layers.MaxPooling2D((2, 2))(c1)
+        if batch_norm:
+            x = tf.layers.batch_normalization(
+                inputs=x,
+                training=is_training,
+                name='bn1'
+            )
+        x = tf.nn.relu(x, name='relu1')
 
-    c2 = tf.keras.layers.Conv2D(128, (3, 3), activation='relu', padding='same')(p1)
-    c2 = tf.keras.layers.Conv2D(128, (3, 3), activation='relu', padding='same')(c2)
-    p2 = tf.keras.layers.MaxPooling2D((2, 2))(c2)
+        # 第二层卷积
+        x = tf.layers.conv2d(
+            inputs=x,
+            filters=num_filters,
+            kernel_size=kernel_size,
+            padding='same',
+            kernel_regularizer=tf.contrib.layers.l2_regularizer(1e-4),
+            name='conv2'
+        )
 
-    c3 = tf.keras.layers.Conv2D(256, (3, 3), activation='relu', padding='same')(p2)
-    c3 = tf.keras.layers.Conv2D(256, (3, 3), activation='relu', padding='same')(c3)
-    p3 = tf.keras.layers.MaxPooling2D((2, 2))(c3)
+        if batch_norm:
+            x = tf.layers.batch_normalization(
+                inputs=x,
+                training=is_training,
+                name='bn2'
+            )
+        x = tf.nn.relu(x, name='relu2')
 
-    c4 = tf.keras.layers.Conv2D(512, (3, 3), activation='relu', padding='same')(p3)
-    c4 = tf.keras.layers.Conv2D(512, (3, 3), activation='relu', padding='same')(c4)
-    p4 = tf.keras.layers.MaxPooling2D((2, 2))(c4)
+        # Dropout
+        if dropout_rate > 0:
+            x = tf.layers.dropout(
+                inputs=x,
+                rate=dropout_rate,
+                training=is_training,
+                name='dropout'
+            )
 
-    # 中间层
-    c5 = tf.keras.layers.Conv2D(1024, (3, 3), activation='relu', padding='same')(p4)
-    c5 = tf.keras.layers.Conv2D(1024, (3, 3), activation='relu', padding='same')(c5)
-
-    # 解码器 (上采样)
-    u6 = tf.keras.layers.Conv2DTranspose(512, (2, 2), strides=(2, 2), padding='same')(c5)
-    u6 = tf.keras.layers.concatenate([u6, c4])
-    c6 = tf.keras.layers.Conv2D(512, (3, 3), activation='relu', padding='same')(u6)
-    c6 = tf.keras.layers.Conv2D(512, (3, 3), activation='relu', padding='same')(c6)
-
-    u7 = tf.keras.layers.Conv2DTranspose(256, (2, 2), strides=(2, 2), padding='same')(c6)
-    u7 = tf.keras.layers.concatenate([u7, c3])
-    c7 = tf.keras.layers.Conv2D(256, (3, 3), activation='relu', padding='same')(u7)
-    c7 = tf.keras.layers.Conv2D(256, (3, 3), activation='relu', padding='same')(c7)
-
-    u8 = tf.keras.layers.Conv2DTranspose(128, (2, 2), strides=(2, 2), padding='same')(c7)
-    u8 = tf.keras.layers.concatenate([u8, c2])
-    c8 = tf.keras.layers.Conv2D(128, (3, 3), activation='relu', padding='same')(u8)
-    c8 = tf.keras.layers.Conv2D(128, (3, 3), activation='relu', padding='same')(c8)
-
-    u9 = tf.keras.layers.Conv2DTranspose(64, (2, 2), strides=(2, 2), padding='same')(c8)
-    u9 = tf.keras.layers.concatenate([u9, c1])
-    c9 = tf.keras.layers.Conv2D(64, (3, 3), activation='relu', padding='same')(u9)
-    c9 = tf.keras.layers.Conv2D(64, (3, 3), activation='relu', padding='same')(c9)
-
-    outputs = tf.keras.layers.Conv2D(out_channels, (1, 1), activation='sigmoid')(c9)
-
-    model = tf.keras.models.Model(inputs=[inputs], outputs=[outputs])
-    return model
+        return x
 
 
-def build_compiled_model():
-    """构建并编译模型"""
-    model = unet_model(input_size=(*Config.IMG_SIZE, Config.IN_CHANNELS), out_channels=Config.OUT_CHANNELS)
-    model.compile(
-        optimizer=tf.keras.optimizers.Adam(lr=Config.LEARNING_RATE),
-        loss='binary_crossentropy',
-        metrics=['accuracy', tf.keras.metrics.MeanIoU(num_classes=2)]
-    )
-    return model
+def unet_model(inputs, is_training=True, num_classes=config.NUM_CLASSES, name='unet'):
+    """
+    构建U-Net模型（纯TF1.x实现）
+    inputs: 输入张量 [batch_size, height, width, channels]
+    """
+    with tf.variable_scope(name):
+        # 下采样（编码）
+        c1 = conv_block(inputs, 64, dropout_rate=0.1, is_training=is_training, name='block1')
+        p1 = tf.layers.max_pooling2d(c1, pool_size=(2, 2), strides=(2, 2), name='pool1')
+
+        c2 = conv_block(p1, 128, dropout_rate=0.1, is_training=is_training, name='block2')
+        p2 = tf.layers.max_pooling2d(c2, pool_size=(2, 2), strides=(2, 2), name='pool2')
+
+        c3 = conv_block(p2, 256, dropout_rate=0.2, is_training=is_training, name='block3')
+        p3 = tf.layers.max_pooling2d(c3, pool_size=(2, 2), strides=(2, 2), name='pool3')
+
+        c4 = conv_block(p3, 512, dropout_rate=0.2, is_training=is_training, name='block4')
+        p4 = tf.layers.max_pooling2d(c4, pool_size=(2, 2), strides=(2, 2), name='pool4')
+
+        # 瓶颈层
+        c5 = conv_block(p4, 1024, dropout_rate=0.3, is_training=is_training, name='block5')
+
+        # 上采样（解码）
+        u6 = tf.layers.conv2d_transpose(
+            inputs=c5,
+            filters=512,
+            kernel_size=(2, 2),
+            strides=(2, 2),
+            padding='same',
+            name='up6'
+        )
+        u6 = tf.concat([u6, c4], axis=-1, name='concat6')
+        c6 = conv_block(u6, 512, dropout_rate=0.2, is_training=is_training, name='block6')
+
+        u7 = tf.layers.conv2d_transpose(
+            inputs=c6,
+            filters=256,
+            kernel_size=(2, 2),
+            strides=(2, 2),
+            padding='same',
+            name='up7'
+        )
+        u7 = tf.concat([u7, c3], axis=-1, name='concat7')
+        c7 = conv_block(u7, 256, dropout_rate=0.2, is_training=is_training, name='block7')
+
+        u8 = tf.layers.conv2d_transpose(
+            inputs=c7,
+            filters=128,
+            kernel_size=(2, 2),
+            strides=(2, 2),
+            padding='same',
+            name='up8'
+        )
+        u8 = tf.concat([u8, c2], axis=-1, name='concat8')
+        c8 = conv_block(u8, 128, dropout_rate=0.1, is_training=is_training, name='block8')
+
+        u9 = tf.layers.conv2d_transpose(
+            inputs=c8,
+            filters=64,
+            kernel_size=(2, 2),
+            strides=(2, 2),
+            padding='same',
+            name='up9'
+        )
+        u9 = tf.concat([u9, c1], axis=-1, name='concat9')
+        c9 = conv_block(u9, 64, dropout_rate=0.1, is_training=is_training, name='block9')
+
+        # 输出层
+        outputs = tf.layers.conv2d(
+            inputs=c9,
+            filters=num_classes,
+            kernel_size=(1, 1),
+            activation=tf.nn.sigmoid,
+            name='output'
+        )
+
+        return outputs
+
+
+if __name__ == "__main__":
+    # 测试模型构建（TF1.x方式）
+    tf.reset_default_graph()
+    with tf.Session(config=config.TF_CONFIG) as sess:
+        # 创建输入占位符
+        inputs = tf.placeholder(
+            tf.float32,
+            [None, config.IMAGE_HEIGHT, config.IMAGE_WIDTH, config.IMAGE_CHANNELS],
+            name='inputs'
+        )
+
+        # 构建模型
+        outputs = unet_model(inputs, is_training=True)
+
+        # 初始化变量
+        sess.run(tf.global_variables_initializer())
+
+        # 打印模型信息
+        print("U-Net模型构建成功！")
+        print(f"输入形状: {inputs.shape}")
+        print(f"输出形状: {outputs.shape}")
+
+        # 打印可训练变量数量
+        trainable_vars = tf.trainable_variables()
+        print(f"可训练变量数量: {len(trainable_vars)}")
+        for var in trainable_vars[:5]:  # 打印前5个变量
+            print(f"变量名: {var.name}, 形状: {var.shape}")

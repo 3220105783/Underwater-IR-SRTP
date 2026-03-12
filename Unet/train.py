@@ -1,68 +1,232 @@
+# -*- coding: utf-8 -*-
 import os
+import numpy as np
 import tensorflow as tf
-from config import Config
-from utils import create_dirs, set_gpu_config, count_files, plot_training_history, CleanLatestModels, SaveHistory
-from unet_model import build_compiled_model
-from unet_dataset import data_generator
-
-# 禁用 TensorFlow 2.x 行为
-tf.disable_v2_behavior()
+import config
+from unet_model import unet_model
+from unet_dataset import get_train_val_datasets
+from utils import (iou_score, dice_coefficient, precision, recall, f1_score,
+                   bce_dice_focal_iou_loss, plot_training_history, save_model_checkpoint)
 
 
-def train():
-    """训练模块：包含早停、TensorBoard、继续训练和模型保存"""
-    create_dirs()
-    set_gpu_config()
+def lr_scheduler(global_step):
+    """
+    TF1.x 学习率调度器
+    """
+    lr = config.INITIAL_LEARNING_RATE * (config.DECAY_RATE ** (global_step // config.DECAY_STEPS))
+    return lr
 
-    # 构建并编译模型
-    model = build_compiled_model()
 
-    # 继续训练：加载exist文件夹中的模型
-    initial_epoch = 0
-    exist_models = [f for f in os.listdir(Config.EXIST_MODEL_DIR) if f.endswith('.ckpt.index')]
-    if exist_models:
-        exist_models.sort(key=lambda x: os.path.getmtime(os.path.join(Config.EXIST_MODEL_DIR, x)), reverse=True)
-        latest_exist = os.path.join(Config.EXIST_MODEL_DIR, exist_models[0].replace('.index', ''))
-        print(f"Loading existing model from {latest_exist}")
-        model.load_weights(latest_exist)
+def train_unet():
+    """
+    TF1.x 训练U-Net模型
+    """
+    # 重置图
+    tf.reset_default_graph()
 
-    # 数据生成器
-    train_gen = data_generator(Config.TRAIN_IMG_DIR, Config.TRAIN_MASK_DIR, Config.BATCH_SIZE, Config.IMG_SIZE,
-                               augment=True)
-    val_gen = data_generator(Config.VAL_IMG_DIR, Config.VAL_MASK_DIR, Config.BATCH_SIZE, Config.IMG_SIZE, augment=False)
+    # 1. 准备数据集
+    print("加载数据集...")
+    train_batch, val_batch, train_steps, val_steps, train_len, val_len = get_train_val_datasets()
+    print(f"训练集：{train_len}样本，{train_steps}步/epoch")
+    print(f"验证集：{val_len}样本，{val_steps}步/epoch")
 
-    # 计算步数
-    num_train = count_files(Config.TRAIN_IMG_DIR)
-    num_val = count_files(Config.VAL_IMG_DIR)
-    steps_per_epoch = num_train // Config.BATCH_SIZE
-    validation_steps = num_val // Config.BATCH_SIZE
+    # 2. 创建占位符
+    inputs = tf.placeholder(
+        tf.float32,
+        [None, config.IMAGE_HEIGHT, config.IMAGE_WIDTH, config.IMAGE_CHANNELS],
+        name='inputs'
+    )
+    labels = tf.placeholder(
+        tf.float32,
+        [None, config.IMAGE_HEIGHT, config.IMAGE_WIDTH, 1],
+        name='labels'
+    )
+    is_training = tf.placeholder(tf.bool, name='is_training')
+    global_step = tf.Variable(0, trainable=False, name='global_step')
 
-    # Callbacks列表
-    callbacks = [
-        tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=Config.PATIENCE, restore_best_weights=True),
-        tf.keras.callbacks.TensorBoard(log_dir=Config.TENSORBOARD_DIR, write_graph=True, write_images=True),
-        tf.keras.callbacks.ModelCheckpoint(Config.BEST_MODEL_PATH, monitor='val_loss', save_best_only=True,
-                                           save_weights_only=True),
-        tf.keras.callbacks.ModelCheckpoint(os.path.join(Config.LATEST_MODEL_DIR, 'latest_model_{epoch:02d}.ckpt'),
-                                           save_weights_only=True),
-        CleanLatestModels(),
-        SaveHistory()
-    ]
+    # 3. 构建模型
+    print("构建U-Net模型...")
+    logits = unet_model(inputs, is_training=is_training)
+
+    # 4. 定义损失和优化器
+    print("定义损失和优化器...")
+    # 损失函数
+    loss = bce_dice_focal_iou_loss(labels, logits)
+    # L2正则化损失
+    reg_losses = tf.get_collection(tf.GraphKeys.REGULARIZATION_LOSSES)
+    total_loss = loss + tf.reduce_sum(reg_losses)
+
+    # 学习率
+    lr = lr_scheduler(global_step)
+    tf.summary.scalar('learning_rate', lr)
+
+    # 优化器（带BN更新）
+    update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
+    with tf.control_dependencies(update_ops):
+        optimizer = tf.train.AdamOptimizer(learning_rate=lr)
+        # 梯度裁剪
+        grads_and_vars = optimizer.compute_gradients(total_loss)
+        clipped_grads = [(tf.clip_by_norm(grad, config.CLIP_NORM), var)
+                         for grad, var in grads_and_vars if grad is not None]
+        train_op = optimizer.apply_gradients(clipped_grads, global_step=global_step)
+
+    # 5. 定义评估指标
+    accuracy = tf.reduce_mean(tf.cast(tf.equal(tf.round(logits), labels), tf.float32), name='accuracy')
+    iou = iou_score(labels, logits)
+    dice = dice_coefficient(labels, logits)
+    prec = precision(labels, logits)
+    rec = recall(labels, logits)
+    f1 = f1_score(labels, logits)
+
+    # 6. TensorBoard汇总
+    tf.summary.scalar('loss', loss)
+    tf.summary.scalar('total_loss', total_loss)
+    tf.summary.scalar('accuracy', accuracy)
+    tf.summary.scalar('iou_score', iou)
+    tf.summary.scalar('precision', prec)
+    tf.summary.scalar('recall', rec)
+    tf.summary.scalar('f1_score', f1)
+    tf.summary.scalar('dice_coefficient', dice)
+
+    # 合并所有汇总
+    summary_op = tf.summary.merge_all()
+
+    # 7. 创建Session
+    sess = tf.Session(config=config.TF_CONFIG)
+    saver = tf.train.Saver(max_to_keep=config.KEEP_LATEST_MODELS)
+
+    # 初始化变量
+    sess.run(tf.global_variables_initializer())
+
+    # 初始化TensorBoard
+    train_writer = tf.summary.FileWriter(os.path.join(config.TENSORBOARD_LOG_DIR, 'train'), sess.graph)
+    val_writer = tf.summary.FileWriter(os.path.join(config.TENSORBOARD_LOG_DIR, 'val'))
+
+    # 8. 训练循环
+    print("开始训练...")
+    best_val_loss = config.BEST_VAL_LOSS
+    stopping_counter = config.STOPPING_COUNTER
+    training_history = {
+        'loss': [], 'accuracy': [], 'iou_score': [], 'precision': [], 'recall': [], 'f1_score': [],
+        'val_loss': [], 'val_accuracy': [], 'val_iou_score': [], 'val_precision': [], 'val_recall': [],
+        'val_f1_score': []
+    }
+
+    for epoch in range(config.EPOCHS):
+        # 训练阶段
+        train_losses = []
+        train_accuracies = []
+        train_ious = []
+
+        for step in range(train_steps):
+            # 获取批次数据
+            batch_images, batch_masks = sess.run(train_batch)
+
+            # 训练步骤
+            _, loss_val, acc_val, iou_val, summary = sess.run(
+                [train_op, total_loss, accuracy, iou, summary_op],
+                feed_dict={
+                    inputs: batch_images,
+                    labels: batch_masks,
+                    is_training: True
+                }
+            )
+
+            train_losses.append(loss_val)
+            train_accuracies.append(acc_val)
+            train_ious.append(iou_val)
+
+            # 写入TensorBoard
+            if step % 10 == 0:
+                train_writer.add_summary(summary, epoch * train_steps + step)
+
+        # 验证阶段
+        val_losses = []
+        val_accuracies = []
+        val_ious = []
+
+        for step in range(val_steps):
+            batch_images, batch_masks = sess.run(val_batch)
+
+            loss_val, acc_val, iou_val, summary = sess.run(
+                [total_loss, accuracy, iou, summary_op],
+                feed_dict={
+                    inputs: batch_images,
+                    labels: batch_masks,
+                    is_training: False
+                }
+            )
+
+            val_losses.append(loss_val)
+            val_accuracies.append(acc_val)
+            val_ious.append(iou_val)
+
+            if step % 10 == 0:
+                val_writer.add_summary(summary, epoch * val_steps + step)
+
+        # 计算平均指标
+        avg_train_loss = np.mean(train_losses)
+        avg_train_acc = np.mean(train_accuracies)
+        avg_train_iou = np.mean(train_ious)
+
+        avg_val_loss = np.mean(val_losses)
+        avg_val_acc = np.mean(val_accuracies)
+        avg_val_iou = np.mean(val_ious)
+
+        # 保存历史
+        training_history['loss'].append(avg_train_loss)
+        training_history['accuracy'].append(avg_train_acc)
+        training_history['iou_score'].append(avg_train_iou)
+        training_history['val_loss'].append(avg_val_loss)
+        training_history['val_accuracy'].append(avg_val_acc)
+        training_history['val_iou_score'].append(avg_val_iou)
+
+        # 打印日志
+        print(f"Epoch {epoch + 1}/{config.EPOCHS}:")
+        print(f"  训练损失: {avg_train_loss:.4f}, 训练准确率: {avg_train_acc:.4f}, 训练IoU: {avg_train_iou:.4f}")
+        print(f"  验证损失: {avg_val_loss:.4f}, 验证准确率: {avg_val_acc:.4f}, 验证IoU: {avg_val_iou:.4f}")
+
+        # 早停机制
+        if avg_val_loss < best_val_loss - config.EARLY_STOPPING_MIN_DELTA:
+            best_val_loss = avg_val_loss
+            stopping_counter = 0
+            # 保存最佳模型
+            save_model_checkpoint(sess, saver, epoch + 1, avg_val_loss, is_best=True)
+        else:
+            stopping_counter += 1
+            print(f"  早停计数器: {stopping_counter}/{config.EARLY_STOPPING_PATIENCE}")
+
+        # 定期保存模型
+        if (epoch + 1) % config.SAVE_CHECKPOINT_EVERY_N_EPOCHS == 0:
+            save_model_checkpoint(sess, saver, epoch + 1, avg_val_loss)
+
+        # 检查早停
+        if stopping_counter >= config.EARLY_STOPPING_PATIENCE:
+            print(f"早停触发！最佳验证损失: {best_val_loss:.4f}")
+            break
+
+    # 9. 训练结束
+    train_writer.close()
+    val_writer.close()
+
+    # 绘制训练历史
+    history_plot_path = os.path.join(config.RESULTS_DIR, 'training_history.png')
+    plot_training_history(training_history, history_plot_path)
+    print(f"训练历史图已保存到：{history_plot_path}")
+
+    # 保存最终模型
+    save_model_checkpoint(sess, saver, config.EPOCHS, best_val_loss)
+
+    print("\n训练完成！")
+    print(f"最佳验证损失: {best_val_loss:.4f}")
+
+    sess.close()
+    return training_history
+
+
+if __name__ == "__main__":
+    # 设置GPU内存增长
+    os.environ['TF_FORCE_GPU_ALLOW_GROWTH'] = 'true'
 
     # 开始训练
-    history = model.fit(
-        train_gen,
-        steps_per_epoch=steps_per_epoch,
-        epochs=Config.EPOCHS,
-        initial_epoch=initial_epoch,
-        validation_data=val_gen,
-        validation_steps=validation_steps,
-        callbacks=callbacks
-    )
-
-    # 绘制训练曲线
-    plot_training_history(history.history)
-
-
-if __name__ == '__main__':
-    train()
+    training_history = train_unet()
