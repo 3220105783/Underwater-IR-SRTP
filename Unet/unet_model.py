@@ -154,12 +154,12 @@ if __name__ == "__main__":
         sess.run(tf.global_variables_initializer())
 
         # 打印模型信息
-        print("U-Net模型构建成功！")
-        print(f"输入形状: {inputs.shape}")
-        print(f"输出形状: {outputs.shape}")
+        print("The U-Net model has been built successfully!")
+        print(f"Inputs Shape: {inputs.shape}")
+        print(f"Outputs Shape: {outputs.shape}")
 
         # 打印可训练变量数量
         trainable_vars = tf.trainable_variables()
-        print(f"可训练变量数量: {len(trainable_vars)}")
+        print(f"Number of trainable variables: {len(trainable_vars)}")
         for var in trainable_vars[:5]:  # 打印前5个变量
-            print(f"变量名: {var.name}, 形状: {var.shape}")
+            print(f"Variable Name: {var.name}, Shape: {var.shape}")

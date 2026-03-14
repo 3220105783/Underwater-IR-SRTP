@@ -25,10 +25,10 @@ def train_unet():
     tf.reset_default_graph()
 
     # 1. 准备数据集
-    print("加载数据集...")
+    print("Loading dataset...")
     train_batch, val_batch, train_steps, val_steps, train_len, val_len = get_train_val_datasets()
-    print(f"训练集：{train_len}样本，{train_steps}步/epoch")
-    print(f"验证集：{val_len}样本，{val_steps}步/epoch")
+    print(f"Training set: {train_len}sample(s), {train_steps}step(s)/epoch")
+    print(f"Validation set: {val_len}sample(s), {val_steps}step(s)/epoch")
 
     # 2. 创建占位符
     inputs = tf.placeholder(
@@ -45,11 +45,11 @@ def train_unet():
     global_step = tf.Variable(0, trainable=False, name='global_step')
 
     # 3. 构建模型
-    print("构建U-Net模型...")
+    print("Building U-Net model...")
     logits = unet_model(inputs, is_training=is_training)
 
     # 4. 定义损失和优化器
-    print("定义损失和优化器...")
+    print("Define loss and optimizer...")
     # 损失函数
     loss = bce_dice_focal_iou_loss(labels, logits)
     # L2正则化损失
@@ -103,7 +103,7 @@ def train_unet():
     val_writer = tf.summary.FileWriter(os.path.join(config.TENSORBOARD_LOG_DIR, 'val'))
 
     # 8. 训练循环
-    print("开始训练...")
+    print("Start training...")
     best_val_loss = config.BEST_VAL_LOSS
     stopping_counter = config.STOPPING_COUNTER
     training_history = {
@@ -183,8 +183,8 @@ def train_unet():
 
         # 打印日志
         print(f"Epoch {epoch + 1}/{config.EPOCHS}:")
-        print(f"  训练损失: {avg_train_loss:.4f}, 训练准确率: {avg_train_acc:.4f}, 训练IoU: {avg_train_iou:.4f}")
-        print(f"  验证损失: {avg_val_loss:.4f}, 验证准确率: {avg_val_acc:.4f}, 验证IoU: {avg_val_iou:.4f}")
+        print(f"  Training loss: {avg_train_loss:.4f}, Training accuracy: {avg_train_acc:.4f}, Training IoU: {avg_train_iou:.4f}")
+        print(f"  Validation loss: {avg_val_loss:.4f}, Validation accuracy: {avg_val_acc:.4f}, Validation IoU: {avg_val_iou:.4f}")
 
         # 早停机制
         if avg_val_loss < best_val_loss - config.EARLY_STOPPING_MIN_DELTA:
@@ -194,7 +194,7 @@ def train_unet():
             save_model_checkpoint(sess, saver, epoch + 1, avg_val_loss, is_best=True)
         else:
             stopping_counter += 1
-            print(f"  早停计数器: {stopping_counter}/{config.EARLY_STOPPING_PATIENCE}")
+            print(f"  Early Stop Counter: {stopping_counter}/{config.EARLY_STOPPING_PATIENCE}")
 
         # 定期保存模型
         if (epoch + 1) % config.SAVE_CHECKPOINT_EVERY_N_EPOCHS == 0:
@@ -202,7 +202,7 @@ def train_unet():
 
         # 检查早停
         if stopping_counter >= config.EARLY_STOPPING_PATIENCE:
-            print(f"早停触发！最佳验证损失: {best_val_loss:.4f}")
+            print(f"Early stopping triggered! Best validation loss: {best_val_loss:.4f}")
             break
 
     # 9. 训练结束
@@ -212,13 +212,13 @@ def train_unet():
     # 绘制训练历史
     history_plot_path = os.path.join(config.RESULTS_DIR, 'training_history.png')
     plot_training_history(training_history, history_plot_path)
-    print(f"训练历史图已保存到：{history_plot_path}")
+    print(f"The training history graph has been saved to：{history_plot_path}")
 
     # 保存最终模型
     save_model_checkpoint(sess, saver, config.EPOCHS, best_val_loss)
 
-    print("\n训练完成！")
-    print(f"最佳验证损失: {best_val_loss:.4f}")
+    print("\nTraining complete!")
+    print(f"Best validation loss: {best_val_loss:.4f}")
 
     sess.close()
     return training_history

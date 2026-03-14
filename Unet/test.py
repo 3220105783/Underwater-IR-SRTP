@@ -106,27 +106,27 @@ def test_unet():
     sess = tf.Session(config=config.TF_CONFIG)
 
     # 3. 加载最佳模型
-    print("加载最佳模型...")
+    print("Loading the best model...")
     try:
         load_best_model(sess)
     except FileNotFoundError as e:
-        print(f"模型加载失败：{e}")
+        print(f"Model loading failed: {e}")
         sess.close()
         return
 
     # 4. 加载测试数据集
-    print("加载测试数据集...")
+    print("Loading test dataset...")
     test_img_paths, test_mask_paths = load_image_mask_pairs(config.TEST_IMG_DIR, config.TEST_MASK_DIR)
-    print(f"测试集样本数：{len(test_img_paths)}")
+    print(f"Number of test set samples: {len(test_img_paths)}")
 
     if len(test_img_paths) == 0:
-        print("测试集为空！")
+        print("Test set is empty!")
         sess.close()
         return
 
     # 5. 预测模式
     if config.PREDICT_MODE:
-        print("开始预测并生成结果...")
+        print("Starting prediction and generating results...")
         for idx, (img_path, mask_path) in enumerate(zip(test_img_paths, test_mask_paths)):
             # 预测
             image, pred_mask = predict_single_image(sess, inputs, logits, is_training_pl, img_path)
@@ -140,17 +140,17 @@ def test_unet():
             visualize_prediction(image, true_mask, pred_mask, save_path)
 
             if (idx + 1) % 10 == 0:
-                print(f"已处理 {idx + 1}/{len(test_img_paths)} 张图像")
+                print(f"Processed {idx + 1}/{len(test_img_paths)} images")
 
-        print(f"预测结果已保存到：{config.TEST_OUTPUT_DIR}")
+        print(f"Prediction results saved to: {config.TEST_OUTPUT_DIR}")
 
     # 6. 评估模式
     if config.EVALUATE_MODE:
-        print("开始评估模型性能...")
+        print("Starting model performance evaluation...")
         results = evaluate_model(sess, inputs, logits, is_training_pl, test_img_paths, test_mask_paths)
 
         # 打印评估结果
-        print("\n模型评估结果：")
+        print("\nModel evaluation results:")
         print("=" * 50)
         for metric, value in results.items():
             print(f"{metric}: {value:.4f}")
@@ -161,7 +161,7 @@ def test_unet():
 
     # 7. 关闭Session
     sess.close()
-    print("\n测试完成！")
+    print("\nTest completed!")
 
 
 if __name__ == "__main__":

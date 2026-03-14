@@ -191,7 +191,7 @@ def save_model_checkpoint(sess, saver, epoch, val_loss, is_best=False):
     if is_best:
         model_path = os.path.join(config.BEST_MODEL_DIR, 'best_model')
         saver.save(sess, model_path)
-        print(f"保存最佳模型到：{model_path}")
+        print(f"Saving best model to: {model_path}")
 
     # 保存最新模型
     model_filename = f'model_epoch_{epoch}_val_loss_{val_loss:.4f}'
@@ -209,7 +209,7 @@ def save_model_checkpoint(sess, saver, epoch, val_loss, is_best=False):
                 file_path = os.path.join(config.LATEST_MODEL_DIR, base_name + ext)
                 if os.path.exists(file_path):
                     os.remove(file_path)
-            print(f"删除旧模型文件：{base_name}")
+            print(f"Deleting old model file: {base_name}")
 
 
 def load_best_model(sess, model_path=None):
@@ -220,12 +220,12 @@ def load_best_model(sess, model_path=None):
         model_path = os.path.join(config.BEST_MODEL_DIR, 'best_model')
 
     if not os.path.exists(model_path + '.meta'):
-        raise FileNotFoundError(f"模型文件不存在：{model_path}")
+        raise FileNotFoundError(f"Model file does not exist: {model_path}")
 
     # 创建Saver
     saver = tf.train.Saver()
     saver.restore(sess, model_path)
-    print(f"成功加载模型：{model_path}")
+    print(f"Successfully loaded model: {model_path}")
 
     return saver
 
@@ -236,9 +236,9 @@ def save_evaluation_results(results, save_path):
     保存评估结果到文件
     """
     with open(save_path, 'w', encoding='utf-8') as f:
-        f.write("U-Net模型评估结果（混凝土裂缝识别）\n")
+        f.write("U-Net Model Evaluation Results (Concrete Crack Detection)\n")
         f.write("=" * 50 + "\n")
         for metric, value in results.items():
             f.write(f"{metric}: {value:.4f}\n")
 
-    print(f"评估结果已保存到：{save_path}")
+    print(f"Evaluation results have been saved to: {save_path}")

@@ -152,9 +152,9 @@ def augment_image_mask(image, mask):
 
     # 确保输出尺寸正确（防御性编程）
     assert image.shape[:2] == (config.IMAGE_HEIGHT, config.IMAGE_WIDTH), \
-        f"图像增强后尺寸错误：{image.shape[:2]}，预期{(config.IMAGE_HEIGHT, config.IMAGE_WIDTH)}"
+        f"Incorrect dimensions after image enhancement: {image.shape[:2]}, expected{(config.IMAGE_HEIGHT, config.IMAGE_WIDTH)}"
     assert mask.shape[:2] == (config.IMAGE_HEIGHT, config.IMAGE_WIDTH), \
-        f"掩码增强后尺寸错误：{mask.shape[:2]}，预期{(config.IMAGE_HEIGHT, config.IMAGE_WIDTH)}"
+        f"Incorrect dimensions after mask enhancement: {mask.shape[:2]}, expected{(config.IMAGE_HEIGHT, config.IMAGE_WIDTH)}"
 
     return image, mask
 
@@ -184,7 +184,7 @@ def preprocess_image_mask(img_path, mask_path, augment=False):
 
         return image, mask
     except Exception as e:
-        print(f"预处理图像{img_path}时出错：{e}")
+        print(f"Error occurred while preprocessing image {img_path}: {e}")
         raise
 
 
@@ -243,9 +243,9 @@ def get_train_val_datasets():
 
     # 检查数据量
     if len(train_img_paths) == 0:
-        raise ValueError("训练集为空！请检查TRAIN_IMG_DIR和TRAIN_MASK_DIR路径，以及文件命名规则（xxx.png对应xxx_mask.png）")
+        raise ValueError("The training set is empty! Please check the paths for TRAIN_IMG_DIR and TRAIN_MASK_DIR, as well as the file naming convention (xxx.png corresponds to xxx_mask.png).")
     if len(val_img_paths) == 0:
-        raise ValueError("验证集为空！请检查VAL_IMG_DIR和VAL_MASK_DIR路径，以及文件命名规则（xxx.png对应xxx_mask.png）")
+        raise ValueError("The validation set is empty! Please check the VAL_IMG_DIR and VAL_MASK_DIR paths, as well as the file naming convention (xxx.png corresponds to xxx_mask.png).")
 
     # 创建生成器
     train_batch = create_dataset_generator(train_img_paths, train_mask_paths, augment=True)
@@ -269,21 +269,21 @@ if __name__ == "__main__":
         try:
             train_batch, val_batch, train_steps, val_steps, train_len, val_len = get_train_val_datasets()
 
-            print(f"训练集样本数: {train_len}, 步数: {train_steps}")
-            print(f"验证集样本数: {val_len}, 步数: {val_steps}")
+            print(f"Number of training set samples: {train_len}, steps: {train_steps}")
+            print(f"Number of validation set samples: {val_len}, steps: {val_steps}")
 
             # 测试生成器
             images, masks = sess.run(train_batch)
-            print(f"图像形状: {images.shape}, 掩码形状: {masks.shape}")
-            print(f"图像值范围: {np.min(images):.4f} ~ {np.max(images):.4f}")
-            print(f"掩码值范围: {np.min(masks):.4f} ~ {np.max(masks):.4f}")
+            print(f"Image shape: {images.shape}, mask shape: {masks.shape}")
+            print(f"Image value range: {np.min(images):.4f} ~ {np.max(images):.4f}")
+            print(f"Mask value range: {np.min(masks):.4f} ~ {np.max(masks):.4f}")
 
             # 测试增强函数
             test_image = np.random.rand(config.IMAGE_HEIGHT, config.IMAGE_WIDTH, 3).astype(np.float32)
             test_mask = np.random.rand(config.IMAGE_HEIGHT, config.IMAGE_WIDTH, 1).astype(np.float32)
             aug_image, aug_mask = augment_image_mask(test_image, test_mask)
-            print(f"增强后图像形状: {aug_image.shape}, 掩码形状: {aug_mask.shape}")
-            print("数据增强函数测试通过！")
+            print(f"Augmented image shape: {aug_image.shape}, mask shape: {aug_mask.shape}")
+            print("Data augmentation function test passed!")
 
         except Exception as e:
-            print(f"测试失败: {e}")
+            print(f"Test failed: {e}")
