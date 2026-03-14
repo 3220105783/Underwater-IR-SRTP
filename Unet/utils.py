@@ -84,7 +84,11 @@ def focal_loss(y_true, y_pred, alpha=config.FOCAL_ALPHA, gamma=config.FOCAL_GAMM
 
         # Binary focal loss
         p_t = tf.where(tf.equal(y_true, 1), y_pred, 1 - y_pred)
-        alpha_t = tf.where(tf.equal(y_true, 1), alpha, 1 - alpha)
+
+        # 关键修复：将alpha转换为与y_true形状相同的张量
+        alpha_tensor = tf.ones_like(y_true) * alpha  # 生成和y_true同形状的alpha张量
+        alpha_t = tf.where(tf.equal(y_true, 1), alpha_tensor, 1 - alpha_tensor)
+
         focal_loss = -alpha_t * tf.pow((1 - p_t), gamma) * tf.log(p_t)
 
         return tf.reduce_mean(focal_loss)
@@ -95,11 +99,12 @@ def bce_dice_focal_iou_loss(y_true, y_pred, name='combined_loss'):
     TF1.x 组合损失函数
     """
     with tf.variable_scope(name):
-        # BCE损失
-        bce = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(
-            labels=y_true,
-            logits=tf.log(y_pred / (1 - y_pred + tf.keras.backend.epsilon()))
-        ))
+        # 修复BCE损失：适配sigmoid输出（y_pred∈[0,1]）
+        epsilon = tf.keras.backend.epsilon()
+        y_pred = tf.clip_by_value(y_pred, epsilon, 1. - epsilon)
+        bce = tf.reduce_mean(
+            - (y_true * tf.log(y_pred) + (1 - y_true) * tf.log(1 - y_pred))
+        )
 
         # Dice损失
         dice = 1 - dice_coefficient(y_true, y_pred)

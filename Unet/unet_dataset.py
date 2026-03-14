@@ -46,6 +46,7 @@ def augment_image_mask(image, mask):
     1. 对每对image/mask随机选择一种增强方式（而非多种叠加）
     2. 确保选中的增强方式使用完全相同的参数同步作用于图像和掩码
     3. 修复cv2.copyMakeBorder的参数类型警告
+    4. 增强后保留掩码的通道维度
     """
     # 定义可用的增强方式列表
     augmentation_methods = []
@@ -65,16 +66,23 @@ def augment_image_mask(image, mask):
     # 随机选择一种增强方式
     selected_method = np.random.choice(augmentation_methods)
 
+    # 临时保存掩码通道维度，增强后恢复
+    mask_has_channel = len(mask.shape) == 3 and mask.shape[-1] == 1
+    if mask_has_channel:
+        mask_2d = mask.squeeze(axis=-1)  # 转为2D进行增强（cv2操作更方便）
+    else:
+        mask_2d = mask
+
     # 根据选中的方式进行增强（参数完全同步）
     if selected_method == 'flip_horizontal':
         # 水平翻转
         image = cv2.flip(image, 1)
-        mask = cv2.flip(mask, 1)
+        mask_2d = cv2.flip(mask_2d, 1)
 
     elif selected_method == 'flip_vertical':
         # 垂直翻转
         image = cv2.flip(image, 0)
-        mask = cv2.flip(mask, 0)
+        mask_2d = cv2.flip(mask_2d, 0)
 
     elif selected_method == 'rotate':
         # 随机旋转（相同角度）
@@ -84,7 +92,7 @@ def augment_image_mask(image, mask):
         m = cv2.getRotationMatrix2D(center, angle, 1.0)
         # 使用INTER_LINEAR插值图像，INTER_NEAREST插值掩码（保持掩码像素值）
         image = cv2.warpAffine(image, m,  (w, h), flags=cv2.INTER_LINEAR)
-        mask = cv2.warpAffine(mask, m, (w, h), flags=cv2.INTER_NEAREST)
+        mask_2d = cv2.warpAffine(mask_2d, m, (w, h), flags=cv2.INTER_NEAREST)
 
     elif selected_method == 'zoom':
         # 随机缩放（相同缩放因子）
@@ -94,7 +102,7 @@ def augment_image_mask(image, mask):
 
         # 缩放（图像用线性插值，掩码用最近邻插值）
         image = cv2.resize(image, (new_w, new_h), interpolation=cv2.INTER_LINEAR)
-        mask = cv2.resize(mask, (new_w, new_h), interpolation=cv2.INTER_NEAREST)
+        mask_2d = cv2.resize(mask_2d, (new_w, new_h), interpolation=cv2.INTER_NEAREST)
 
         # 裁剪/填充回原尺寸（修复参数类型警告）
         if zoom_factor > 1:
@@ -115,7 +123,7 @@ def augment_image_mask(image, mask):
                 start_w = end_w - w
 
             image = image[start_h:end_h, start_w:end_w]
-            mask = mask[start_h:end_h, start_w:end_w]
+            mask_2d = mask_2d[start_h:end_h, start_w:end_w]
         else:
             # 填充到原尺寸（修复参数类型警告：value需为序列类型）
             pad_h = (h - new_h) // 2
@@ -143,18 +151,26 @@ def augment_image_mask(image, mask):
                 cv2.BORDER_CONSTANT,
                 value=image_border_value  # 序列类型，修复警告
             )
-            mask = cv2.copyMakeBorder(
-                mask,
+            mask_2d = cv2.copyMakeBorder(
+                mask_2d,
                 top, bottom, left, right,
                 cv2.BORDER_CONSTANT,
                 value=mask_border_value  # 序列类型，修复警告
             )
+
+    # 恢复掩码的通道维度
+    if mask_has_channel:
+        mask = np.expand_dims(mask_2d, axis=-1)
+    else:
+        mask = mask_2d
 
     # 确保输出尺寸正确（防御性编程）
     assert image.shape[:2] == (config.IMAGE_HEIGHT, config.IMAGE_WIDTH), \
         f"Incorrect dimensions after image enhancement: {image.shape[:2]}, expected{(config.IMAGE_HEIGHT, config.IMAGE_WIDTH)}"
     assert mask.shape[:2] == (config.IMAGE_HEIGHT, config.IMAGE_WIDTH), \
         f"Incorrect dimensions after mask enhancement: {mask.shape[:2]}, expected{(config.IMAGE_HEIGHT, config.IMAGE_WIDTH)}"
+    # 确保掩码通道维度正确
+    assert len(mask.shape) == 3 and mask.shape[-1] == 1, f"Mask channel error after augmentation: {mask.shape}"
 
     return image, mask
 
@@ -176,11 +192,24 @@ def preprocess_image_mask(img_path, mask_path, augment=False):
         mask = Image.open(mask_path).resize((config.IMAGE_WIDTH, config.IMAGE_HEIGHT)).convert('L')
         mask = np.array(mask, dtype=np.float32) / 255.0
         mask = np.where(mask > 0.5, 1.0, 0.0)
-        mask = np.expand_dims(mask, axis=-1)  # [H, W, 1]
+        # 强制确保掩码是 [H, W, 1] 维度（关键修复）
+        if len(mask.shape) == 2:
+            mask = np.expand_dims(mask, axis=-1)
+        # 防御性检查：确保掩码维度正确
+        assert len(mask.shape) == 3 and mask.shape[-1] == 1, f"Mask shape error: {mask.shape}"
 
         # 数据增强（仅训练时启用）
         if augment and config.DATA_AUGMENTATION:
             image, mask = augment_image_mask(image, mask)
+            # 增强后再次检查掩码维度
+            if len(mask.shape) == 2:
+                mask = np.expand_dims(mask, axis=-1)
+
+        # 最终维度校验
+        assert image.shape == (config.IMAGE_HEIGHT, config.IMAGE_WIDTH, config.IMAGE_CHANNELS), \
+            f"Image shape error: {image.shape} vs {(config.IMAGE_HEIGHT, config.IMAGE_WIDTH, config.IMAGE_CHANNELS)}"
+        assert mask.shape == (config.IMAGE_HEIGHT, config.IMAGE_WIDTH, 1), \
+            f"Mask shape error: {mask.shape} vs {(config.IMAGE_HEIGHT, config.IMAGE_WIDTH, 1)}"
 
         return image, mask
     except Exception as e:
@@ -214,15 +243,24 @@ def create_dataset_generator(img_paths, mask_paths, batch_size=config.BATCH_SIZE
                     batch_images.append(image)
                     batch_masks.append(mask)
 
-                yield np.array(batch_images), np.array(batch_masks)
+                # 转换为numpy数组（确保批次维度正确）
+                batch_images_np = np.array(batch_images, dtype=np.float32)
+                batch_masks_np = np.array(batch_masks, dtype=np.float32)
 
-    # 创建TF数据集
+                # 最终校验批次维度
+                assert len(batch_images_np.shape) == 4, f"Batch images shape error: {batch_images_np.shape}"
+                assert len(batch_masks_np.shape) == 4 and batch_masks_np.shape[-1] == 1, \
+                    f"Batch masks shape error: {batch_masks_np.shape}"
+
+                yield batch_images_np, batch_masks_np
+
+    # 创建TF数据集（明确输出形状，避免维度推断错误）
     dataset = tf.data.Dataset.from_generator(
         generator,
         output_types=(tf.float32, tf.float32),
         output_shapes=(
-            (None, config.IMAGE_HEIGHT, config.IMAGE_WIDTH, config.IMAGE_CHANNELS),
-            (None, config.IMAGE_HEIGHT, config.IMAGE_WIDTH, 1)
+            (batch_size, config.IMAGE_HEIGHT, config.IMAGE_WIDTH, config.IMAGE_CHANNELS),
+            (batch_size, config.IMAGE_HEIGHT, config.IMAGE_WIDTH, 1)
         )
     )
 

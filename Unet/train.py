@@ -11,9 +11,23 @@ from utils import (iou_score, dice_coefficient, precision, recall, f1_score,
 
 def lr_scheduler(global_step):
     """
-    TF1.x 学习率调度器
+    TF1.x 学习率调度器（修复类型不匹配问题）
     """
-    lr = config.INITIAL_LEARNING_RATE * (config.DECAY_RATE ** (global_step // config.DECAY_STEPS))
+    # 1. 将所有参数转换为TensorFlow张量（浮点类型）
+    global_step_float = tf.cast(global_step, tf.float32)
+    decay_steps_float = tf.cast(config.DECAY_STEPS, tf.float32)
+    initial_lr = tf.cast(config.INITIAL_LEARNING_RATE, tf.float32)
+    decay_rate = tf.cast(config.DECAY_RATE, tf.float32)
+
+    # 2. 使用TF操作替代Python原生运算（避免类型错误）
+    decay_exponent = tf.floor_div(global_step_float, decay_steps_float)  # 整数除法（浮点结果）
+    lr = initial_lr * tf.pow(decay_rate, decay_exponent)
+
+    # 3. 确保学习率不低于最小值（可选，增强鲁棒性）
+    if hasattr(config, 'MIN_LEARNING_RATE'):
+        min_lr = tf.cast(config.MIN_LEARNING_RATE, tf.float32)
+        lr = tf.maximum(lr, min_lr)
+
     return lr
 
 

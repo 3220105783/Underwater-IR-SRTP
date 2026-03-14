@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import os
+import cv2
 import tensorflow as tf
 
 # ===================== 基础配置 =====================
@@ -41,6 +42,7 @@ EPOCHS = 100
 INITIAL_LEARNING_RATE = 1e-4
 DECAY_STEPS = 1000
 DECAY_RATE = 0.9
+MIN_LEARNING_RATE = 1e-6  # 新增：学习率下限
 CLIP_NORM = 1.0
 
 # 早停机制
