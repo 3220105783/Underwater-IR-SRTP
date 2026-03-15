@@ -38,7 +38,7 @@ for dir_path in [BEST_MODEL_DIR, LATEST_MODEL_DIR, TENSORBOARD_LOG_DIR, RESULTS_
 # ===================== 训练配置 =====================
 # 训练参数
 BATCH_SIZE = 2
-EPOCHS = 100
+EPOCHS = 200
 INITIAL_LEARNING_RATE = 2e-4
 #DECAY_STEPS = 1000
 #DECAY_RATE = 0.9
@@ -57,7 +57,7 @@ STOPPING_COUNTER = 0
 # 模型保存
 SAVE_BEST_ONLY = True
 SAVE_CHECKPOINT_EVERY_N_EPOCHS = 1
-KEEP_LATEST_MODELS = 5  # 保留最新的5个模型
+KEEP_LATEST_MODELS = 3  # 保留最新的5个模型
 
 # ===================== 数据增强配置 =====================
 DATA_AUGMENTATION = True
