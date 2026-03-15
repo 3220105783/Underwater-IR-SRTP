@@ -9,24 +9,23 @@ from utils import (iou_score, dice_coefficient, precision, recall, f1_score,
                    bce_dice_focal_iou_loss, plot_training_history, save_model_checkpoint)
 
 
-def lr_scheduler(global_step):
+def lr_scheduler(global_step, train_steps):
     """
-    TF1.x 学习率调度器（修复类型不匹配问题）
+    TF1.x 学习率调度器（余弦退火）
     """
     # 1. 将所有参数转换为TensorFlow张量（浮点类型）
     global_step_float = tf.cast(global_step, tf.float32)
-    decay_steps_float = tf.cast(config.DECAY_STEPS, tf.float32)
     initial_lr = tf.cast(config.INITIAL_LEARNING_RATE, tf.float32)
-    decay_rate = tf.cast(config.DECAY_RATE, tf.float32)
+    eta_min = tf.cast(config.COSINE_ETA_MIN, tf.float32)
+    t_max = tf.cast(config.COSINE_T_MAX * train_steps, tf.float32)  # 转换为总step数（周期）
 
-    # 2. 使用TF操作替代Python原生运算（避免类型错误）
-    decay_exponent = tf.floor_div(global_step_float, decay_steps_float)  # 整数除法（浮点结果）
-    lr = initial_lr * tf.pow(decay_rate, decay_exponent)
+    # 2. 余弦退火学习率核心计算
+    # 公式：lr = eta_min + (initial_lr - eta_min) * 0.5 * (1 + cos(pi * global_step / t_max))
+    cosine_decay = 0.5 * (1 + tf.cos(tf.constant(np.pi) * global_step_float / t_max))
+    lr = eta_min + (initial_lr - eta_min) * cosine_decay
 
-    # 3. 确保学习率不低于最小值（可选，增强鲁棒性）
-    if hasattr(config, 'MIN_LEARNING_RATE'):
-        min_lr = tf.cast(config.MIN_LEARNING_RATE, tf.float32)
-        lr = tf.maximum(lr, min_lr)
+    # 3. 确保学习率不低于最小值（增强鲁棒性）
+    lr = tf.maximum(lr, eta_min)
 
     return lr
 
@@ -70,8 +69,8 @@ def train_unet():
     reg_losses = tf.get_collection(tf.GraphKeys.REGULARIZATION_LOSSES)
     total_loss = loss + tf.reduce_sum(reg_losses)
 
-    # 学习率
-    lr = lr_scheduler(global_step)
+    # 学习率（传入train_steps适配余弦退火）
+    lr = lr_scheduler(global_step, train_steps)
     tf.summary.scalar('learning_rate', lr)
 
     # 优化器（带BN更新）
