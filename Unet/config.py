@@ -56,8 +56,8 @@ STOPPING_COUNTER = 0
 
 # 模型保存
 SAVE_BEST_ONLY = True
-SAVE_CHECKPOINT_EVERY_N_EPOCHS = 5
-KEEP_LATEST_MODELS = 3  # 保留最新的3个模型
+SAVE_CHECKPOINT_EVERY_N_EPOCHS = 1
+KEEP_LATEST_MODELS = 5  # 保留最新的5个模型
 
 # ===================== 数据增强配置 =====================
 DATA_AUGMENTATION = True
@@ -71,9 +71,9 @@ ZOOM_RANGE = (0.8, 1.2)  # 缩放范围
 # ===================== 损失函数配置 =====================
 # 损失函数权重
 BCE_WEIGHT = 0.2
-DICE_WEIGHT = 0.3
+DICE_WEIGHT = 0.2
 FOCAL_WEIGHT = 0.2
-IOU_WEIGHT = 0.3
+IOU_WEIGHT = 0.4
 
 # Focal Loss参数
 FOCAL_ALPHA = 0.25

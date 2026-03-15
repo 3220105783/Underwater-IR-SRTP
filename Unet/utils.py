@@ -214,18 +214,20 @@ def save_model_checkpoint(sess, saver, epoch, val_loss, is_best):
     model_path = os.path.join(config.LATEST_MODEL_DIR, model_filename)
     saver.save(sess, model_path)
 
-    # 清理旧模型
-    model_files = sorted([f for f in os.listdir(config.LATEST_MODEL_DIR) if f.endswith('.meta')],
-                         key=lambda x: os.path.getctime(os.path.join(config.LATEST_MODEL_DIR, x)))
-    if len(model_files) > config.KEEP_LATEST_MODELS:
-        for old_meta in model_files[:-config.KEEP_LATEST_MODELS]:
-            # 删除相关文件
-            base_name = old_meta[:-5]  # 去掉.meta后缀
-            for ext in ['.meta', '.index', '.data-00000-of-00001']:
-                file_path = os.path.join(config.LATEST_MODEL_DIR, base_name + ext)
-                if os.path.exists(file_path):
-                    os.remove(file_path)
-            print(f"Deleting old model file: {base_name}")
+    # 修复：清理逻辑仅针对LATEST_MODEL_DIR，且过滤掉best_model
+    if os.path.exists(config.LATEST_MODEL_DIR):
+        model_files = sorted(
+            [f for f in os.listdir(config.LATEST_MODEL_DIR) if f.endswith('.meta') and 'model_epoch_' in f],
+            key=lambda x: os.path.getctime(os.path.join(config.LATEST_MODEL_DIR, x)))
+        if len(model_files) > config.KEEP_LATEST_MODELS:
+            for old_meta in model_files[:-config.KEEP_LATEST_MODELS]:
+                base_name = old_meta[:-5]
+                # 修复：清理路径改为LATEST_MODEL_DIR
+                for ext in ['.meta', '.index', '.data-00000-of-00001']:
+                    file_path = os.path.join(config.LATEST_MODEL_DIR, base_name + ext)  # 关键修复
+                    if os.path.exists(file_path):
+                        os.remove(file_path)
+                print(f"Deleted old model file: {os.path.join(config.LATEST_MODEL_DIR, base_name)}")
 
 
 def load_best_model(sess, model_path=None):
