@@ -188,13 +188,13 @@ def visualize_prediction(image, mask, pred_mask, save_path):
 
 
 # ===================== 模型保存与加载（TF1.x） =====================
-def save_model_checkpoint(sess, saver, epoch, val_loss, is_best=False):
+def save_model_checkpoint(sess, saver, epoch, val_loss, is_best):
     """
     TF1.x 保存模型检查点
     """
     # 保存最佳模型
     if is_best:
-        model_path = os.path.join(config.BEST_MODEL_DIR, 'best_model')
+        model_path = os.path.join(config.BEST_MODEL_DIR, f'best_model')
         saver.save(sess, model_path)
         print(f"Saving best model to: {model_path}")
 

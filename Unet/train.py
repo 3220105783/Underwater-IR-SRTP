@@ -212,7 +212,7 @@ def train_unet():
 
         # 定期保存模型
         if (epoch + 1) % config.SAVE_CHECKPOINT_EVERY_N_EPOCHS == 0:
-            save_model_checkpoint(sess, saver, epoch + 1, avg_val_loss)
+            save_model_checkpoint(sess, saver, epoch + 1, avg_val_loss, is_best=False)
 
         # 检查早停
         if stopping_counter >= config.EARLY_STOPPING_PATIENCE:
@@ -229,7 +229,7 @@ def train_unet():
     print(f"The training history graph has been saved to：{history_plot_path}")
 
     # 保存最终模型
-    save_model_checkpoint(sess, saver, config.EPOCHS, best_val_loss)
+    save_model_checkpoint(sess, saver, config.EPOCHS, best_val_loss, is_best=False)
 
     print("\nTraining complete!")
     print(f"Best validation loss: {best_val_loss:.4f}")
