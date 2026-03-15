@@ -268,7 +268,7 @@ def train_unet():
     print(f"The training history graph has been saved to：{history_plot_path}")
 
     # 保存最终模型
-    save_model_checkpoint(sess, saver, config.EPOCHS, best_val_loss, is_best=False)
+    # save_model_checkpoint(sess, saver, config.EPOCHS, best_val_loss, is_best=False)
 
     print("\nTraining complete!")
     print(f"Best validation loss: {best_val_loss:.4f}")
