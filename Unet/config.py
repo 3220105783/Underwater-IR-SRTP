@@ -70,10 +70,10 @@ ZOOM_RANGE = (0.8, 1.2)  # 缩放范围
 
 # ===================== 损失函数配置 =====================
 # 损失函数权重
-BCE_WEIGHT = 0.5
+BCE_WEIGHT = 0.2
 DICE_WEIGHT = 0.3
 FOCAL_WEIGHT = 0.2
-IOU_WEIGHT = 0.1
+IOU_WEIGHT = 0.3
 
 # Focal Loss参数
 FOCAL_ALPHA = 0.25
