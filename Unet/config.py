@@ -37,19 +37,19 @@ for dir_path in [BEST_MODEL_DIR, LATEST_MODEL_DIR, TENSORBOARD_LOG_DIR, RESULTS_
 
 # ===================== 训练配置 =====================
 # 训练参数
-BATCH_SIZE = 4
+BATCH_SIZE = 2
 EPOCHS = 100
-INITIAL_LEARNING_RATE = 1e-4
+INITIAL_LEARNING_RATE = 2e-4
 #DECAY_STEPS = 1000
 #DECAY_RATE = 0.9
-MIN_LEARNING_RATE = 5e-5  # 新增：学习率下限
+MIN_LEARNING_RATE = 1e-6  # 新增：学习率下限
 CLIP_NORM = 1.0
 # 余弦退火学习率配置（新增）
 COSINE_T_MAX = EPOCHS  # 余弦退火周期（以epoch为单位，完整周期的epoch数）
 COSINE_ETA_MIN = MIN_LEARNING_RATE  # 余弦退火最小学习率（复用已有下限）
 
 # 早停机制
-EARLY_STOPPING_PATIENCE = 15
+EARLY_STOPPING_PATIENCE = 25
 EARLY_STOPPING_MIN_DELTA = 1e-4
 BEST_VAL_LOSS = float('inf')
 STOPPING_COUNTER = 0
@@ -71,9 +71,9 @@ ZOOM_RANGE = (0.8, 1.2)  # 缩放范围
 # ===================== 损失函数配置 =====================
 # 损失函数权重
 BCE_WEIGHT = 0.2
-DICE_WEIGHT = 0.2
+DICE_WEIGHT = 0.5
 FOCAL_WEIGHT = 0.2
-IOU_WEIGHT = 0.4
+IOU_WEIGHT = 0.1
 
 # Focal Loss参数
 FOCAL_ALPHA = 0.25

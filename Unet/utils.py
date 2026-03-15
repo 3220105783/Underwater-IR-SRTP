@@ -12,24 +12,26 @@ plt.rcParams['axes.unicode_minus'] = False
 
 
 # ===================== 评估指标函数（TF1.x） =====================
-def iou_score(y_true, y_pred, name='iou_score'):
+def iou_score(y_true, y_pred, threshold, name='iou_score'):
     """
     TF1.x 计算IoU
     """
     with tf.variable_scope(name):
-        y_pred = tf.round(y_pred)  # 二值化
+        if threshold is not None:
+            y_pred = tf.round(y_pred)  # 二值化
         intersection = tf.reduce_sum(tf.abs(y_true * y_pred), axis=[1, 2, 3])
         union = tf.reduce_sum(y_true, axis=[1, 2, 3]) + tf.reduce_sum(y_pred, axis=[1, 2, 3]) - intersection
         iou = (intersection + tf.keras.backend.epsilon()) / (union + tf.keras.backend.epsilon())
         return tf.reduce_mean(iou)
 
 
-def dice_coefficient(y_true, y_pred, name='dice_coefficient'):
+def dice_coefficient(y_true, y_pred, threshold, name='dice_coefficient'):
     """
     TF1.x 计算Dice系数
     """
     with tf.variable_scope(name):
-        y_pred = tf.round(y_pred)
+        if threshold is not None:
+            y_pred = tf.round(y_pred)
         intersection = tf.reduce_sum(y_true * y_pred, axis=[1, 2, 3])
         dice = (2. * intersection + tf.keras.backend.epsilon()) / (
                 tf.reduce_sum(y_true, axis=[1, 2, 3]) + tf.reduce_sum(y_pred,
@@ -38,37 +40,39 @@ def dice_coefficient(y_true, y_pred, name='dice_coefficient'):
         return tf.reduce_mean(dice)
 
 
-def precision(y_true, y_pred, name='precision'):
+def precision(y_true, y_pred, threshold, name='precision'):
     """
     TF1.x 计算精确率
     """
     with tf.variable_scope(name):
-        y_pred = tf.round(y_pred)
+        if threshold is not None:
+            y_pred = tf.round(y_pred)
         true_positives = tf.reduce_sum(tf.round(tf.clip_by_value(y_true * y_pred, 0, 1)))
         predicted_positives = tf.reduce_sum(tf.round(tf.clip_by_value(y_pred, 0, 1)))
         precision = true_positives / (predicted_positives + tf.keras.backend.epsilon())
         return precision
 
 
-def recall(y_true, y_pred, name='recall'):
+def recall(y_true, y_pred, threshold, name='recall'):
     """
     TF1.x 计算召回率
     """
     with tf.variable_scope(name):
-        y_pred = tf.round(y_pred)
+        if threshold is not None:
+            y_pred = tf.round(y_pred)
         true_positives = tf.reduce_sum(tf.round(tf.clip_by_value(y_true * y_pred, 0, 1)))
         possible_positives = tf.reduce_sum(tf.round(tf.clip_by_value(y_true, 0, 1)))
         recall = true_positives / (possible_positives + tf.keras.backend.epsilon())
         return recall
 
 
-def f1_score(y_true, y_pred, name='f1_score'):
+def f1_score(y_true, y_pred, threshold, name='f1_score'):
     """
     TF1.x 计算F1分数
     """
     with tf.variable_scope(name):
-        prec = precision(y_true, y_pred)
-        rec = recall(y_true, y_pred)
+        prec = precision(y_true, y_pred, threshold=threshold)
+        rec = recall(y_true, y_pred, threshold=threshold)
         f1 = 2 * ((prec * rec) / (prec + rec + tf.keras.backend.epsilon()))
         return f1
 
@@ -107,13 +111,13 @@ def bce_dice_focal_iou_loss(y_true, y_pred, name='combined_loss'):
         )
 
         # Dice损失
-        dice = 1 - dice_coefficient(y_true, y_pred)
+        dice = 1 - dice_coefficient(y_true, y_pred, threshold=None)
 
         # Focal损失
         focal = focal_loss(y_true, y_pred)
 
         # IoU损失
-        iou = 1 - iou_score(y_true, y_pred)
+        iou = 1 - iou_score(y_true, y_pred, threshold=None)
 
         # 加权组合
         total_loss = (

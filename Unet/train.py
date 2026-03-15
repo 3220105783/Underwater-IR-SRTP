@@ -85,11 +85,11 @@ def train_unet():
 
     # 5. 定义评估指标
     accuracy = tf.reduce_mean(tf.cast(tf.equal(tf.round(logits), labels), tf.float32), name='accuracy')
-    iou = iou_score(labels, logits)
-    dice = dice_coefficient(labels, logits)
-    prec = precision(labels, logits)
-    rec = recall(labels, logits)
-    f1 = f1_score(labels, logits)
+    iou = iou_score(labels, logits, threshold=None)
+    dice = dice_coefficient(labels, logits, threshold=None)
+    prec = precision(labels, logits, threshold=None)
+    rec = recall(labels, logits, threshold=None)
+    f1 = f1_score(labels, logits, threshold=None)
 
     # 6. TensorBoard汇总
     tf.summary.scalar('loss', loss)

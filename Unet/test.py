@@ -44,11 +44,11 @@ def evaluate_model(sess, inputs, logits, is_training_pl, test_img_paths, test_ma
 
     # 创建评估指标计算图
     labels_pl = tf.placeholder(tf.float32, [None, config.IMAGE_HEIGHT, config.IMAGE_WIDTH, 1], name='labels_pl')
-    iou_op = iou_score(labels_pl, logits)
-    dice_op = dice_coefficient(labels_pl, logits)
-    prec_op = precision(labels_pl, logits)
-    rec_op = recall(labels_pl, logits)
-    f1_op = f1_score(labels_pl, logits)
+    iou_op = iou_score(labels_pl, logits, threshold=config.THRESHOLD)
+    dice_op = dice_coefficient(labels_pl, logits, threshold=config.THRESHOLD)
+    prec_op = precision(labels_pl, logits, threshold=config.THRESHOLD)
+    rec_op = recall(labels_pl, logits, threshold=config.THRESHOLD)
+    f1_op = f1_score(labels_pl, logits, threshold=config.THRESHOLD)
 
     for img_path, mask_path in zip(test_img_paths, test_mask_paths):
         # 加载数据
