@@ -194,9 +194,20 @@ def save_model_checkpoint(sess, saver, epoch, val_loss, is_best):
     """
     # 保存最佳模型
     if is_best:
-        model_path = os.path.join(config.BEST_MODEL_DIR, f'best_model')
-        saver.save(sess, model_path)
-        print(f"Saving best model to: {model_path}")
+        best_model_base = os.path.join(config.BEST_MODEL_DIR, 'best_model')
+        # 定义best_model对应的所有后缀文件
+        best_model_exts = ['.meta', '.index', '.data-00000-of-00001']
+
+        # 第一步：删除旧的best_model相关文件（避免残留）
+        for ext in best_model_exts:
+            old_file = best_model_base + ext
+            if os.path.exists(old_file):
+                os.remove(old_file)
+                print(f"Deleted old best model file: {old_file}")
+
+        # 第二步：保存新的最佳模型
+        saver.save(sess, best_model_base)
+        print(f"Saved new best model to: {best_model_base}")
 
     # 保存最新模型
     model_filename = f'model_epoch_{epoch}_val_loss_{val_loss:.4f}'
