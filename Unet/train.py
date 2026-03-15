@@ -131,14 +131,19 @@ def train_unet():
         train_losses = []
         train_accuracies = []
         train_ious = []
+        # 新增：初始化precision/recall/f1记录列表
+        train_precisions = []
+        train_recalls = []
+        train_f1 = []
 
         for step in range(train_steps):
             # 获取批次数据
             batch_images, batch_masks = sess.run(train_batch)
 
             # 训练步骤
-            _, loss_val, acc_val, iou_val, summary = sess.run(
-                [train_op, total_loss, accuracy, iou, summary_op],
+            # 新增：获取precision/recall/f1值
+            _, loss_val, acc_val, iou_val, prec_val, rec_val, f1_val, summary = sess.run(
+                [train_op, total_loss, accuracy, iou, prec, rec, f1, summary_op],
                 feed_dict={
                     inputs: batch_images,
                     labels: batch_masks,
@@ -149,6 +154,10 @@ def train_unet():
             train_losses.append(loss_val)
             train_accuracies.append(acc_val)
             train_ious.append(iou_val)
+            # 新增：记录precision/recall/f1值
+            train_precisions.append(prec_val)
+            train_recalls.append(rec_val)
+            train_f1.append(f1_val)
 
             # 写入TensorBoard
             if step % 10 == 0:
@@ -158,12 +167,17 @@ def train_unet():
         val_losses = []
         val_accuracies = []
         val_ious = []
+        # 新增：初始化验证集precision/recall/f1记录列表
+        val_precisions = []
+        val_recalls = []
+        val_f1 = []
 
         for step in range(val_steps):
             batch_images, batch_masks = sess.run(val_batch)
 
-            loss_val, acc_val, iou_val, summary = sess.run(
-                [total_loss, accuracy, iou, summary_op],
+            # 新增：获取验证集precision/recall/f1值
+            loss_val, acc_val, iou_val, prec_val, rec_val, f1_val, summary = sess.run(
+                [total_loss, accuracy, iou, prec, rec, f1, summary_op],
                 feed_dict={
                     inputs: batch_images,
                     labels: batch_masks,
@@ -174,6 +188,10 @@ def train_unet():
             val_losses.append(loss_val)
             val_accuracies.append(acc_val)
             val_ious.append(iou_val)
+            # 新增：记录验证集precision/recall/f1值
+            val_precisions.append(prec_val)
+            val_recalls.append(rec_val)
+            val_f1.append(f1_val)
 
             if step % 10 == 0:
                 val_writer.add_summary(summary, epoch * val_steps + step)
@@ -182,23 +200,45 @@ def train_unet():
         avg_train_loss = np.mean(train_losses)
         avg_train_acc = np.mean(train_accuracies)
         avg_train_iou = np.mean(train_ious)
+        # 新增：计算训练集precision/recall/f1平均值
+        avg_train_prec = np.mean(train_precisions)
+        avg_train_rec = np.mean(train_recalls)
+        avg_train_f1 = np.mean(train_f1)
 
         avg_val_loss = np.mean(val_losses)
         avg_val_acc = np.mean(val_accuracies)
         avg_val_iou = np.mean(val_ious)
+        # 新增：计算验证集precision/recall/f1平均值
+        avg_val_prec = np.mean(val_precisions)
+        avg_val_rec = np.mean(val_recalls)
+        avg_val_f1 = np.mean(val_f1)
 
         # 保存历史
         training_history['loss'].append(avg_train_loss)
         training_history['accuracy'].append(avg_train_acc)
         training_history['iou_score'].append(avg_train_iou)
+        # 新增：保存训练集precision/recall/f1
+        training_history['precision'].append(avg_train_prec)
+        training_history['recall'].append(avg_train_rec)
+        training_history['f1_score'].append(avg_train_f1)
         training_history['val_loss'].append(avg_val_loss)
         training_history['val_accuracy'].append(avg_val_acc)
         training_history['val_iou_score'].append(avg_val_iou)
+        # 新增：保存验证集precision/recall/f1
+        training_history['val_precision'].append(avg_val_prec)
+        training_history['val_recall'].append(avg_val_rec)
+        training_history['val_f1_score'].append(avg_val_f1)
 
         # 打印日志
         print(f"Epoch {epoch + 1}/{config.EPOCHS}:")
         print(f"  Training loss: {avg_train_loss:.4f}, Training accuracy: {avg_train_acc:.4f}, Training IoU: {avg_train_iou:.4f}")
+        # 新增：打印训练集precision/recall/f1
+        print(
+            f"  Training precision: {avg_train_prec:.4f}, Training recall: {avg_train_rec:.4f}, Training F1: {avg_train_f1:.4f}")
         print(f"  Validation loss: {avg_val_loss:.4f}, Validation accuracy: {avg_val_acc:.4f}, Validation IoU: {avg_val_iou:.4f}")
+        # 新增：打印验证集precision/recall/f1
+        print(
+            f"  Validation precision: {avg_val_prec:.4f}, Validation recall: {avg_val_rec:.4f}, Validation F1: {avg_val_f1:.4f}")
 
         # 早停机制
         if avg_val_loss < best_val_loss - config.EARLY_STOPPING_MIN_DELTA:
