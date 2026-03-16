@@ -76,13 +76,13 @@ CONTRAST_RANGE = (0.8, 1.2)
 
 # ===================== 损失函数配置 =====================
 # 损失函数权重
-BCE_WEIGHT = 0.2
-DICE_WEIGHT = 0.5
-FOCAL_WEIGHT = 0.2
-IOU_WEIGHT = 0.1
+BCE_WEIGHT = 0.15
+DICE_WEIGHT = 0.45
+FOCAL_WEIGHT = 0.25
+IOU_WEIGHT = 0.15
 
 # Focal Loss参数
-FOCAL_ALPHA = 0.25
+FOCAL_ALPHA = 0.75
 FOCAL_GAMMA = 2.0
 
 # ===================== 测试配置 =====================
