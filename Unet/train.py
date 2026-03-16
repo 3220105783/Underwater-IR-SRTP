@@ -239,17 +239,27 @@ def train_unet():
         print(
             f"  Validation precision: {avg_val_prec:.4f}, Validation recall: {avg_val_rec:.4f}, Validation F1: {avg_val_f1:.4f}")
 
-        # 早停机制
+        # 早停机制（核心修改：增加模型保存校验）
         if avg_val_loss < best_val_loss - config.EARLY_STOPPING_MIN_DELTA:
-            best_val_loss = avg_val_loss
-            stopping_counter = 0
             # 保存最佳模型
             save_model_checkpoint(sess, saver, epoch + 1, avg_val_loss, is_best=True)
+
+            # 校验最佳模型文件是否存在
+            best_model_base = os.path.join(config.BEST_MODEL_DIR, 'best_model')
+            best_model_exts = ['.meta', '.index', '.data-00000-of-00001']
+            if all(os.path.exists(best_model_base + ext) for ext in best_model_exts):
+                # 仅当文件完整时，更新best_val_loss和计数器
+                best_val_loss = avg_val_loss
+                stopping_counter = 0
+                print(f"[INFO] Updated best validation loss to: {best_val_loss:.4f}")
+            else:
+                # 文件不完整，不更新状态，警告
+                print(f"[WARNING] Best model files are incomplete! Keep old best loss: {best_val_loss:.4f}")
         else:
             stopping_counter += 1
             print(f"  Early Stop Counter: {stopping_counter}/{config.EARLY_STOPPING_PATIENCE}")
 
-        # 定期保存模型
+        # 定期保存模型（非最佳）
         if (epoch + 1) % config.SAVE_CHECKPOINT_EVERY_N_EPOCHS == 0:
             save_model_checkpoint(sess, saver, epoch + 1, avg_val_loss, is_best=False)
 

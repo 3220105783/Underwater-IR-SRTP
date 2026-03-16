@@ -194,31 +194,62 @@ def visualize_prediction(image, mask, pred_mask, save_path):
 # ===================== 模型保存与加载（TF1.x） =====================
 def save_model_checkpoint(sess, saver, epoch, val_loss, is_best):
     """
-    TF1.x 保存模型检查点
+    TF1.x 保存模型检查点（修复原子性+校验+日志）
     """
-    # 保存最佳模型
-    if is_best:
-        best_model_base = os.path.join(config.BEST_MODEL_DIR, 'best_model')
-        # 定义best_model对应的所有后缀文件
-        best_model_exts = ['.meta', '.index', '.data-00000-of-00001']
-
-        # 第一步：删除旧的best_model相关文件（避免残留）
-        for ext in best_model_exts:
-            old_file = best_model_base + ext
-            if os.path.exists(old_file):
-                os.remove(old_file)
-                print(f"Deleted old best model file: {old_file}")
-
-        # 第二步：保存新的最佳模型
-        saver.save(sess, best_model_base)
-        print(f"Saved new best model to: {best_model_base}")
-
-    # 保存最新模型
+    # 保存最新模型（原有逻辑保留，增加日志）
     model_filename = f'model_epoch_{epoch}_val_loss_{val_loss:.4f}'
     model_path = os.path.join(config.LATEST_MODEL_DIR, model_filename)
-    saver.save(sess, model_path)
+    try:
+        saver.save(sess, model_path)
+        print(f"[INFO] Saved latest model to: {model_path}")
+    except Exception as e:
+        print(f"[ERROR] Failed to save latest model: {e}")
 
-    # 修复：清理逻辑仅针对LATEST_MODEL_DIR，且过滤掉best_model
+    # 保存最佳模型（核心修复）
+    if is_best:
+        best_model_base = os.path.join(config.BEST_MODEL_DIR, 'best_model')
+        best_model_exts = ['.meta', '.index', '.data-00000-of-00001']
+
+        # 步骤1：保存到临时文件（避免覆盖失败）
+        temp_model_base = best_model_base + "_temp"
+        try:
+            # 保存临时模型
+            saver.save(sess, temp_model_base)
+            print(f"[INFO] Saved temp best model to: {temp_model_base}")
+
+            # 验证临时文件是否完整
+            temp_files_exist = all(os.path.exists(temp_model_base + ext) for ext in best_model_exts)
+            if not temp_files_exist:
+                raise Exception(
+                    f"Temp model files are incomplete! Missing: {[ext for ext in best_model_exts if not os.path.exists(temp_model_base + ext)]}")
+
+            # 步骤2：删除旧最佳模型（仅当临时文件验证成功）
+            for ext in best_model_exts:
+                old_file = best_model_base + ext
+                if os.path.exists(old_file):
+                    os.remove(old_file)
+                    print(f"[INFO] Deleted old best model file: {old_file}")
+
+            # 步骤3：重命名临时文件为正式文件（原子操作）
+            for ext in best_model_exts:
+                temp_file = temp_model_base + ext
+                new_file = best_model_base + ext
+                if os.path.exists(temp_file):
+                    os.rename(temp_file, new_file)
+                    print(f"[INFO] Renamed temp file to best model: {new_file}")
+
+            print(f"[SUCCESS] Saved new best model to: {best_model_base}")
+
+        except Exception as e:
+            print(f"[ERROR] Failed to save best model: {e}")
+            # 清理临时文件（避免残留）
+            for ext in best_model_exts:
+                temp_file = temp_model_base + ext
+                if os.path.exists(temp_file):
+                    os.remove(temp_file)
+            return  # 保存失败，直接返回
+
+    # 清理旧模型文件（原有逻辑+日志增强）
     if os.path.exists(config.LATEST_MODEL_DIR):
         model_files = sorted(
             [f for f in os.listdir(config.LATEST_MODEL_DIR) if f.endswith('.meta') and 'model_epoch_' in f],
@@ -226,12 +257,14 @@ def save_model_checkpoint(sess, saver, epoch, val_loss, is_best):
         if len(model_files) > config.KEEP_LATEST_MODELS:
             for old_meta in model_files[:-config.KEEP_LATEST_MODELS]:
                 base_name = old_meta[:-5]
-                # 修复：清理路径改为LATEST_MODEL_DIR
+                deleted_count = 0
                 for ext in ['.meta', '.index', '.data-00000-of-00001']:
-                    file_path = os.path.join(config.LATEST_MODEL_DIR, base_name + ext)  # 关键修复
+                    file_path = os.path.join(config.LATEST_MODEL_DIR, base_name + ext)
                     if os.path.exists(file_path):
                         os.remove(file_path)
-                print(f"Deleted old model file: {os.path.join(config.LATEST_MODEL_DIR, base_name)}")
+                        deleted_count += 1
+                print(
+                    f"[INFO] Deleted old model (files: {deleted_count}): {os.path.join(config.LATEST_MODEL_DIR, base_name)}")
 
 
 def load_best_model(sess, model_path=None):
