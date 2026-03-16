@@ -64,20 +64,20 @@ def unet_model(inputs, is_training=True, num_classes=config.NUM_CLASSES, name='u
     """
     with tf.variable_scope(name):
         # 下采样（编码）
-        c1 = conv_block(inputs, 64, dropout_rate=0.2, is_training=is_training, name='block1')
+        c1 = conv_block(inputs, 64, dropout_rate=0.1, is_training=is_training, name='block1')
         p1 = tf.layers.max_pooling2d(c1, pool_size=(2, 2), strides=(2, 2), name='pool1')
 
-        c2 = conv_block(p1, 128, dropout_rate=0.2, is_training=is_training, name='block2')
+        c2 = conv_block(p1, 128, dropout_rate=0.1, is_training=is_training, name='block2')
         p2 = tf.layers.max_pooling2d(c2, pool_size=(2, 2), strides=(2, 2), name='pool2')
 
-        c3 = conv_block(p2, 256, dropout_rate=0.3, is_training=is_training, name='block3')
+        c3 = conv_block(p2, 256, dropout_rate=0.2, is_training=is_training, name='block3')
         p3 = tf.layers.max_pooling2d(c3, pool_size=(2, 2), strides=(2, 2), name='pool3')
 
-        c4 = conv_block(p3, 512, dropout_rate=0.3, is_training=is_training, name='block4')
+        c4 = conv_block(p3, 512, dropout_rate=0.2, is_training=is_training, name='block4')
         p4 = tf.layers.max_pooling2d(c4, pool_size=(2, 2), strides=(2, 2), name='pool4')
 
         # 瓶颈层
-        c5 = conv_block(p4, 1024, dropout_rate=0.4, is_training=is_training, name='block5')
+        c5 = conv_block(p4, 1024, dropout_rate=0.3, is_training=is_training, name='block5')
 
         # 上采样（解码）
         u6 = tf.layers.conv2d_transpose(
@@ -89,7 +89,7 @@ def unet_model(inputs, is_training=True, num_classes=config.NUM_CLASSES, name='u
             name='up6'
         )
         u6 = tf.concat([u6, c4], axis=-1, name='concat6')
-        c6 = conv_block(u6, 512, dropout_rate=0.3, is_training=is_training, name='block6')
+        c6 = conv_block(u6, 512, dropout_rate=0.2, is_training=is_training, name='block6')
 
         u7 = tf.layers.conv2d_transpose(
             inputs=c6,
@@ -100,7 +100,7 @@ def unet_model(inputs, is_training=True, num_classes=config.NUM_CLASSES, name='u
             name='up7'
         )
         u7 = tf.concat([u7, c3], axis=-1, name='concat7')
-        c7 = conv_block(u7, 256, dropout_rate=0.3, is_training=is_training, name='block7')
+        c7 = conv_block(u7, 256, dropout_rate=0.2, is_training=is_training, name='block7')
 
         u8 = tf.layers.conv2d_transpose(
             inputs=c7,
@@ -111,7 +111,7 @@ def unet_model(inputs, is_training=True, num_classes=config.NUM_CLASSES, name='u
             name='up8'
         )
         u8 = tf.concat([u8, c2], axis=-1, name='concat8')
-        c8 = conv_block(u8, 128, dropout_rate=0.2, is_training=is_training, name='block8')
+        c8 = conv_block(u8, 128, dropout_rate=0.1, is_training=is_training, name='block8')
 
         u9 = tf.layers.conv2d_transpose(
             inputs=c8,
@@ -122,7 +122,7 @@ def unet_model(inputs, is_training=True, num_classes=config.NUM_CLASSES, name='u
             name='up9'
         )
         u9 = tf.concat([u9, c1], axis=-1, name='concat9')
-        c9 = conv_block(u9, 64, dropout_rate=0.2, is_training=is_training, name='block9')
+        c9 = conv_block(u9, 64, dropout_rate=0.1, is_training=is_training, name='block9')
 
         # 输出层
         outputs = tf.layers.conv2d(

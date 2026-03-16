@@ -64,9 +64,15 @@ DATA_AUGMENTATION = True
 RANDOM_FLIP_HORIZONTAL = True
 RANDOM_FLIP_VERTICAL = True
 RANDOM_ROTATION = True
-ROTATION_RANGE = 15  # 旋转角度范围
+ROTATION_RANGE = 45  # 旋转角度范围
 RANDOM_ZOOM = True
-ZOOM_RANGE = (0.8, 1.2)  # 缩放范围
+ZOOM_RANGE = (0.5, 1.5)  # 缩放范围
+RANDOM_BRIGHTNESS = True
+BRIGHTNESS_ALPHA_RANGE = (0.8, 1.2)
+BRIGHTNESS_BETA_RANGE = (-20, 20)
+RANDOM_CONTRAST = True
+CONTRAST_RANGE = (0.8, 1.2)
+
 
 # ===================== 损失函数配置 =====================
 # 损失函数权重

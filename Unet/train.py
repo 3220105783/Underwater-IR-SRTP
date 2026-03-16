@@ -10,23 +10,21 @@ from utils import (iou_score, dice_coefficient, precision, recall, f1_score,
 
 
 def lr_scheduler(global_step, train_steps):
-    """
-    TF1.x 学习率调度器（余弦退火）
-    """
-    # 1. 将所有参数转换为TensorFlow张量（浮点类型）
     global_step_float = tf.cast(global_step, tf.float32)
     initial_lr = tf.cast(config.INITIAL_LEARNING_RATE, tf.float32)
     eta_min = tf.cast(config.COSINE_ETA_MIN, tf.float32)
-    t_max = tf.cast(config.COSINE_T_MAX * train_steps, tf.float32)  # 转换为总step数（周期）
+    t_max = tf.cast(config.COSINE_T_MAX * train_steps, tf.float32)
 
-    # 2. 余弦退火学习率核心计算
-    # 公式：lr = eta_min + (initial_lr - eta_min) * 0.5 * (1 + cos(pi * global_step / t_max))
-    cosine_decay = 0.5 * (1 + tf.cos(tf.constant(np.pi) * global_step_float / t_max))
-    lr = eta_min + (initial_lr - eta_min) * cosine_decay
-
-    # 3. 确保学习率不低于最小值（增强鲁棒性）
+    # 余弦退火+暖启动：前5epoch学习率线性上升，避免初始震荡
+    warmup_epochs = 5
+    warmup_steps = warmup_epochs * train_steps
+    if global_step_float < warmup_steps:
+        lr = initial_lr * (global_step_float / warmup_steps)
+    else:
+        cosine_decay = 0.5 * (
+                    1 + tf.cos(tf.constant(np.pi) * (global_step_float - warmup_steps) / (t_max - warmup_steps)))
+        lr = eta_min + (initial_lr - eta_min) * cosine_decay
     lr = tf.maximum(lr, eta_min)
-
     return lr
 
 

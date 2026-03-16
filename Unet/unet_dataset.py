@@ -58,6 +58,10 @@ def augment_image_mask(image, mask):
         augmentation_methods.append('rotate')
     if config.RANDOM_ZOOM:
         augmentation_methods.append('zoom')
+    if config.RANDOM_BRIGHTNESS:
+        augmentation_methods.append('brightness')
+    if config.RANDOM_CONTRAST:
+        augmentation_methods.append('contrast')
 
     # 如果没有启用任何增强方式，直接返回
     if not augmentation_methods or not config.DATA_AUGMENTATION:
@@ -157,6 +161,16 @@ def augment_image_mask(image, mask):
                 cv2.BORDER_CONSTANT,
                 value=mask_border_value  # 序列类型，修复警告
             )
+
+    elif selected_method == 'brightness':
+        alpha = np.random.uniform(config.BRIGHTNESS_ALPHA_RANGE[0], config.BRIGHTNESS_ALPHA_RANGE[1])
+        beta = np.random.uniform(config.BRIGHTNESS_BETA_RANGE[0], config.BRIGHTNESS_BETA_RANGE[1])
+        image = cv2.convertScaleAbs(image, alpha=alpha, beta=beta)
+
+    elif selected_method == 'contrast':
+        gamma = np.random.uniform(config.CONTRAST_RANGE[0], config.CONTRAST_RANGE[1])
+        image = np.power(image / 255.0, gamma) * 255.0
+        image = image.astype(np.uint8)
 
     # 恢复掩码的通道维度
     if mask_has_channel:
