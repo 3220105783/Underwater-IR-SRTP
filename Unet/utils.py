@@ -77,51 +77,6 @@ def f1_score(y_true, y_pred, threshold, name='f1_score'):
         return f1
 
 
-def giou_score(y_true, y_pred, threshold, name='giou_score'):
-    """
-    TF1.x 计算GIoU（比IoU更关注边界，提升裂缝边界分割精度）
-    """
-    with tf.variable_scope(name):
-        if threshold is not None:
-            y_pred = tf.round(y_pred)
-
-        # 基础IoU计算
-        intersection = tf.reduce_sum(tf.abs(y_true * y_pred), axis=[1, 2, 3])
-        union = tf.reduce_sum(y_true, axis=[1, 2, 3]) + tf.reduce_sum(y_pred, axis=[1, 2, 3]) - intersection
-        iou = (intersection + tf.keras.backend.epsilon()) / (union + tf.keras.backend.epsilon())
-
-        # 计算最小外接矩形（解决边界漏检）
-        y_true_flat = tf.reshape(y_true, [tf.shape(y_true)[0], -1])
-        y_pred_flat = tf.reshape(y_pred, [tf.shape(y_pred)[0], -1])
-
-        # 处理全0掩码（避免报错）
-        def get_bbox(mask_flat, mask_3d):
-            non_zero = tf.where(tf.greater(mask_flat, 0.0))
-            if tf.size(non_zero) == 0:
-                return tf.zeros([tf.shape(mask_3d)[0], 4])
-            y_min = tf.reduce_min(non_zero[:, 1] // config.IMAGE_WIDTH, axis=0)
-            x_min = tf.reduce_min(non_zero[:, 1] % config.IMAGE_WIDTH, axis=0)
-            y_max = tf.reduce_max(non_zero[:, 1] // config.IMAGE_WIDTH, axis=0)
-            x_max = tf.reduce_max(non_zero[:, 1] % config.IMAGE_WIDTH, axis=0)
-            bbox = tf.stack([y_min, x_min, y_max, x_max], axis=1)
-            return tf.tile(bbox, [tf.shape(mask_3d)[0], 1])
-
-        bbox_true = get_bbox(y_true_flat, y_true)
-        bbox_pred = get_bbox(y_pred_flat, y_pred)
-
-        # 外接矩形面积
-        bbox_union_y1 = tf.minimum(bbox_true[:, 0], bbox_pred[:, 0])
-        bbox_union_x1 = tf.minimum(bbox_true[:, 1], bbox_pred[:, 1])
-        bbox_union_y2 = tf.maximum(bbox_true[:, 2], bbox_pred[:, 2])
-        bbox_union_x2 = tf.maximum(bbox_true[:, 3], bbox_pred[:, 3])
-        area_union_bbox = (bbox_union_y2 - bbox_union_y1) * (bbox_union_x2 - bbox_union_x1)
-        area_union_bbox = tf.maximum(area_union_bbox, 1e-6)
-
-        # GIoU = IoU - (外接矩形-并集)/外接矩形
-        giou = iou - (area_union_bbox - union) / (area_union_bbox + epsilon)
-        return tf.reduce_mean(giou)
-
-
 # ===================== 损失函数（TF1.x） =====================
 def focal_loss(y_true, y_pred, alpha=config.FOCAL_ALPHA, gamma=config.FOCAL_GAMMA, name='focal_loss'):
     """
@@ -145,35 +100,26 @@ def focal_loss(y_true, y_pred, alpha=config.FOCAL_ALPHA, gamma=config.FOCAL_GAMM
 
 def bce_dice_focal_iou_loss(y_true, y_pred, name='combined_loss'):
     """
-    TF1.x 组合损失函数（优化版：加权BCE+GIoU+标签平滑，提升Recall/IoU）
+    TF1.x 组合损失函数
     """
     with tf.variable_scope(name):
+        # 修复BCE损失：适配sigmoid输出（y_pred∈[0,1]）
         epsilon = tf.keras.backend.epsilon()
         y_pred = tf.clip_by_value(y_pred, epsilon, 1. - epsilon)
-
-        # ========== 1. 加权BCE（解决类别不平衡，提升Recall） ==========
-        # 统计数据集裂缝像素占比（示例：假设训练集裂缝占10%，需替换为你真实的占比）
-        pos_ratio = 0.1  # 计算方式：sum(训练集所有mask的1值像素数) / sum(所有mask总像素数)
-        weight_pos = (1 - pos_ratio) / pos_ratio  # 正样本（裂缝）权重
-        # 标签平滑：缓解过拟合，提升泛化
-        label_smoothing = 0.05
-        y_true_smooth = y_true * (1 - label_smoothing) + 0.5 * label_smoothing
-        # 加权+平滑的BCE
         bce = tf.reduce_mean(
-            - (weight_pos * y_true_smooth * tf.log(y_pred) + (1 - y_true_smooth) * tf.log(1 - y_pred))
+            - (y_true * tf.log(y_pred) + (1 - y_true) * tf.log(1 - y_pred))
         )
 
-        # ========== 2. Dice Loss增强（提升小裂缝召回） ==========
-        # 带平滑的Dice Loss，强化正样本重叠
-        intersection = tf.reduce_sum(y_true * y_pred, axis=[1, 2, 3])
-        dice = 1 - (2. * intersection + 1e-5) / (
-                tf.reduce_sum(y_true, axis=[1, 2, 3]) + tf.reduce_sum(y_pred, axis=[1, 2, 3]) + 1e-5
-        )
+        # Dice损失
+        dice = 1 - dice_coefficient(y_true, y_pred, threshold=None)
 
-        focal = focal_loss(y_true, y_pred, alpha=config.FOCAL_ALPHA, gamma=config.FOCAL_GAMMA)
+        # Focal损失
+        focal = focal_loss(y_true, y_pred)
 
-        iou = 1 - giou_score(y_true, y_pred, threshold=None)  # 替换原iou_score
+        # IoU损失
+        iou = 1 - iou_score(y_true, y_pred, threshold=None)
 
+        # 加权组合
         total_loss = (
                 config.BCE_WEIGHT * bce +
                 config.DICE_WEIGHT * dice +
