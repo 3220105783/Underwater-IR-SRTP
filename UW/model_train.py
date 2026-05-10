@@ -506,8 +506,30 @@ class T_CNN(object):
             gc1 = tf.nn.relu(conv2d(conv_wb1000, 32, 3, k_h=3, k_w=3, d_h=1, d_w=1, name="conv2wb_1111"))
 
             weight_wb, weight_ce, weight_gc = tf.split(conv_wb77, 3, 3)
-            output1 = tf.add(tf.add(tf.multiply(wb1, weight_wb), tf.multiply(ce1, weight_ce)),
-                             tf.multiply(gc1, weight_gc))
+
+            # ========== SE 全局权重模块 ==========
+            # 对三个子分支输出做 GAP（全局平均池化），提取全局统计特征
+            # 通过 FC → ReLU → FC → Sigmoid 生成三个标量权重 α, β, γ
+            with tf.variable_scope("se_global"):
+                gap_wb = tf.reduce_mean(wb1, axis=[1, 2], keepdims=False)   # 白平衡分支全局特征
+                gap_ce = tf.reduce_mean(ce1, axis=[1, 2], keepdims=False)   # 直方图均衡分支全局特征
+                gap_gc = tf.reduce_mean(gc1, axis=[1, 2], keepdims=False)   # Gamma校正分支全局特征
+                concat_gap = tf.concat([gap_wb, gap_ce, gap_gc], axis=1)    # 拼接全局特征 [B, C_wb+C_ce+C_gc]
+                se_fc1 = tf.layers.dense(concat_gap, 9, activation=tf.nn.relu, name='se_fc1')    # 降维至中间层
+                se_fc2 = tf.layers.dense(se_fc1, 3, activation=tf.nn.sigmoid, name='se_fc2')     # 生成3个全局标量权重
+                alpha = tf.reshape(se_fc2[:, 0:1], [-1, 1, 1, 1])   # 白平衡全局权重
+                beta  = tf.reshape(se_fc2[:, 1:2], [-1, 1, 1, 1])   # 直方图均衡全局权重
+                gamma = tf.reshape(se_fc2[:, 2:3], [-1, 1, 1, 1])   # Gamma校正全局权重
+            # ====================================
+
+            # 两级融合：SE全局标量 × 空间权重 × 子分支输出
+            output1 = tf.add(
+                tf.add(
+                    tf.multiply(tf.multiply(wb1, weight_wb), alpha),
+                    tf.multiply(tf.multiply(ce1, weight_ce), beta)
+                ),
+                tf.multiply(tf.multiply(gc1, weight_gc), gamma)
+            )
 
         return output1
 
