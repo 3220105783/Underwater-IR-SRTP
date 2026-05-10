@@ -1,5 +1,5 @@
 ## Chongyi Li, Chunle Guo, Wenqi Ren, Runmin Cong, Junhui Hou, Sam Kwong, Dacheng Tao , "An Underwater Image Enhancement Benchmark Dataset and Beyond" IEEE TIP 2019 #######
-## Project: https://li-chongyi.github.io/proj_benchmark.html 
+## Project: https://li-chongyi.github.io/proj_benchmark.html
 ############################################################################################################################################################################
 
 from model import T_CNN
@@ -65,13 +65,13 @@ def main(_):
     tf.reset_default_graph()
     with tf.Session() as sess:
       # with tf.device('/cpu:0'):
-        srcnn = T_CNN(sess, 
+        srcnn = T_CNN(sess,
                   image_height=shape[0],
-                  image_width=shape[1],  
-                  label_height=FLAGS.label_height, 
-                  label_width=FLAGS.label_width, 
+                  image_width=shape[1],
+                  label_height=FLAGS.label_height,
+                  label_width=FLAGS.label_width,
                   batch_size=FLAGS.batch_size,
-                  c_dim=FLAGS.c_dim, 
+                  c_dim=FLAGS.c_dim,
                   c_depth_dim=FLAGS.c_depth_dim,
                   checkpoint_dir=FLAGS.checkpoint_dir,
                   sample_dir=FLAGS.sample_dir,

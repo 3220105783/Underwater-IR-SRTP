@@ -50,7 +50,7 @@ class T_CNN(object):
         self.CONTENT_LAYER = 'relu5_4'
         # ===================== 新增代码开始（早停参数） =====================
         # 早停机制参数
-        self.early_stop_patience = 25  # 耐心值：连续多少个epoch验证损失不下降则停止
+        self.early_stop_patience = 40  # 耐心值：连续多少个epoch验证损失不下降则停止
         self.early_stop_min_delta = 5e-7  # 最小损失变化：小于该值认为无改进
         self.best_val_loss = float('inf')  # 最佳验证损失
         self.early_stop_counter = 0  # 早停计数器
@@ -558,6 +558,7 @@ class T_CNN(object):
             print(f"Deleted .meta file: {meta_file}")
 
     def load(self, checkpoint_dir):
+        import tensorflow as tf
         print(" [*] Reading checkpoints...")
         model_dir = "%s_%s" % ("coarse", self.label_height)
         checkpoint_dir = os.path.join(checkpoint_dir, model_dir)
@@ -565,7 +566,16 @@ class T_CNN(object):
         ckpt = tf.train.get_checkpoint_state(checkpoint_dir)
         if ckpt and ckpt.model_checkpoint_path:
             ckpt_name = os.path.basename(ckpt.model_checkpoint_path)
-            self.saver.restore(self.sess, os.path.join(checkpoint_dir, ckpt_name))
+            try:
+                self.saver.restore(self.sess, os.path.join(checkpoint_dir, ckpt_name))
+                print(" [*] Full model restored (including SE module)")
+            except:
+                print(" [!] Full restore failed, trying backbone-only restore...")
+                import tensorflow as tf
+                bv = [v for v in tf.trainable_variables() if "se_global" not in v.name]
+                if bv:
+                    tf.train.Saver(var_list=bv).restore(self.sess, os.path.join(checkpoint_dir, ckpt_name))
+                    print(" [*] Backbone restored, SE module randomly initialized")
             return True
         else:
             return False
