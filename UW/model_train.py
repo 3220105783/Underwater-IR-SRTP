@@ -166,7 +166,7 @@ class T_CNN(object):
         label_luminance = tf.reduce_mean(self.labels_image, axis=-1, keepdims=True)
 
         # 生成高光掩码（亮度>阈值的区域为1，否则为0）
-        highlight_mask = tf.cast(pred_luminance > self.highlight_threshold, tf.float32)
+        highlight_mask = tf.cast(tf.reduce_mean(self.labels_image, axis=-1, keepdims=True) > self.highlight_threshold, tf.float32)
         # 加权MSE损失
         mse_loss = tf.square(self.labels_image - self.pred_h1)
         weighted_mse_loss = tf.reduce_mean(mse_loss * (1.0 + highlight_mask * (self.highlight_weight - 1.0)))
@@ -190,11 +190,23 @@ class T_CNN(object):
         self.lab_loss = tf.reduce_mean(tf.abs(pred_lab - label_lab))
 
         # 4. 总损失重构（平衡各损失项）
-        self.loss = (0.1 * self.loss_texture1 +  # VGG纹理损失
-                     0.3 * self.loss_h1 +  # 原始MAE损失
-                     0.2 * weighted_mse_loss +  # 高光加权MSE损失
-                     0.3 * self.ssim_loss +  # SSIM损失
-                     0.1 * self.lab_loss)  # LAB颜色损失
+        # ---- AB高光加权损失 ----
+        pred_lab = self.rgb_to_lab(self.pred_h1)
+        label_lab = self.rgb_to_lab(self.labels_image)
+        ab_diff = tf.abs(pred_lab[...,1:3] - label_lab[...,1:3])
+        self.highlight_ab_loss = tf.reduce_mean(ab_diff * highlight_mask) * self.highlight_weight
+        # ---- 蓝色非对称惩罚 ----
+        b_diff = label_lab[...,2:3] - pred_lab[...,2:3]
+        self.blue_penalty_loss = tf.reduce_mean(tf.nn.relu(b_diff))
+        # ---- TV Loss (AB channels only, LAB space) ----
+        # 只对 AB 通道做总变分，L 通道不动，压制色度噪声
+        tv_a_h = tf.reduce_mean(tf.abs(pred_lab[...,1:2][:,1:,:,:] - pred_lab[...,1:2][:,:-1,:,:]))
+        tv_a_w = tf.reduce_mean(tf.abs(pred_lab[...,1:2][:,:,1:,:] - pred_lab[...,1:2][:,:,:-1,:]))
+        tv_b_h = tf.reduce_mean(tf.abs(pred_lab[...,2:3][:,1:,:,:] - pred_lab[...,2:3][:,:-1,:,:]))
+        tv_b_w = tf.reduce_mean(tf.abs(pred_lab[...,2:3][:,:,1:,:] - pred_lab[...,2:3][:,:,:-1,:]))
+        self.tv_loss = (tv_a_h + tv_a_w + tv_b_h + tv_b_w) * 1e-4
+        # ---- 总损失 ----
+        self.loss = (0.10 * self.loss_texture1 + 0.20 * self.loss_h1 + 0.15 * weighted_mse_loss + 0.15 * self.ssim_loss + 0.25 * self.lab_loss + 0.10 * self.highlight_ab_loss + 0.05 * self.blue_penalty_loss + self.tv_loss)
 
         # 5. 计算PSNR（峰值信噪比）
         self.mse = tf.reduce_mean(mse_loss)
